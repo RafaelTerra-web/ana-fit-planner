@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.codex-server/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+*.local
+.env
+.env.*
+!.env.example

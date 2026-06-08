@@ -1,0 +1,18 @@
+{
+  "name": "Ana Fit Planner",
+  "short_name": "Ana Fit",
+  "description": "Painel simples para dieta, treino, cardio e progresso.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
