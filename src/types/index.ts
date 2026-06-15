@@ -59,14 +59,32 @@ export type Food = {
   note?: string;
 };
 
+export type MuscleGroup =
+  | 'glutes'
+  | 'quadriceps'
+  | 'hamstrings'
+  | 'back'
+  | 'chest'
+  | 'shoulders'
+  | 'arms'
+  | 'core'
+  | 'calves';
+
+export type ExerciseTarget = {
+  muscle: MuscleGroup;
+  role: 'primary' | 'secondary';
+};
+
 export type Exercise = {
   id: string;
   name: string;
-  sets: string;
+  sets: number;
   reps: string;
   rest: string;
   rir?: string;
   note?: string;
+  targets: ExerciseTarget[];
+  unilateral?: boolean;
   progressionType: 'large' | 'isolation';
 };
 
@@ -125,6 +143,8 @@ export type AppData = {
   goals: Goals;
   meals: Meal[];
   notifications: NotificationSettings;
+  workouts: Workout[];
+  weekPlan: WeekPlanItem[];
   dailyChecks: Record<string, DailyChecks>;
   exerciseLogs: Record<string, ExerciseLog>;
   progressEntries: ProgressEntry[];

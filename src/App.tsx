@@ -8,9 +8,10 @@ import { Progress } from './pages/Progress';
 import { Settings } from './pages/Settings';
 import { Today } from './pages/Today';
 import { Workout } from './pages/Workout';
-import type { AppData, AppTab, DailyChecks, ExerciseLog, Goals, Meal, Profile, ProgressEntry } from './types';
+import type { AppData, AppTab, DailyChecks, ExerciseLog, Goals, Meal, Profile, ProgressEntry, WeekPlanItem, Workout as WorkoutPlan } from './types';
 import { calculateDynamicGoals, calculateMealPlan } from './utils/dietCalculator';
 import { createDefaultNotificationSettings } from './utils/notifications';
+import { createDefaultWeekPlan, createDefaultWorkouts, normalizeWorkoutData } from './utils/workoutVolume';
 
 const STORAGE_KEY = 'ana-fit-planner:data:v4';
 
@@ -43,6 +44,8 @@ function createInitialData(): AppData {
     goals: defaultGoals,
     meals: defaultMeals,
     notifications: createDefaultNotificationSettings(),
+    workouts: createDefaultWorkouts(),
+    weekPlan: createDefaultWeekPlan(),
     dailyChecks: {
       [getDateKey()]: createDailyChecks(defaultMeals),
     },
@@ -65,14 +68,19 @@ function normalizeDailyChecks(checks: DailyChecks | undefined, meals: Meal[]): D
 
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>(getInitialTab);
-  const [data, setData] = useLocalStorage<AppData>(STORAGE_KEY, createInitialData);
+  const [storedData, setStoredData] = useLocalStorage<AppData>(STORAGE_KEY, createInitialData);
+  const data = useMemo(() => normalizeWorkoutData(storedData), [storedData]);
   const notifications = data.notifications ?? createDefaultNotificationSettings();
   const dateKey = getDateKey();
-  const todayPlan = useMemo(() => getTodayPlan(), []);
+  const todayPlan = useMemo(() => getTodayPlan(data.weekPlan), [data.weekPlan]);
   const todayChecks = normalizeDailyChecks(data.dailyChecks[dateKey], data.meals);
 
+  const updateData = (updater: (current: AppData) => AppData) => {
+    setStoredData((current) => normalizeWorkoutData(updater(normalizeWorkoutData(current))));
+  };
+
   const updateTodayChecks = (updater: (checks: DailyChecks) => DailyChecks) => {
-    setData((current) => {
+    updateData((current) => {
       const currentChecks = normalizeDailyChecks(current.dailyChecks[dateKey], current.meals);
 
       return {
@@ -100,7 +108,7 @@ function App() {
   };
 
   const updateExerciseLog = (exerciseId: string, log: ExerciseLog) => {
-    setData((current) => ({
+    updateData((current) => ({
       ...current,
       exerciseLogs: {
         ...current.exerciseLogs,
@@ -110,7 +118,7 @@ function App() {
   };
 
   const updateGoals = (goals: Partial<Goals>) => {
-    setData((current) => ({
+    updateData((current) => ({
       ...current,
       goals: {
         ...current.goals,
@@ -121,7 +129,7 @@ function App() {
   };
 
   const updateProfile = (profile: Partial<Profile>) => {
-    setData((current) => {
+    updateData((current) => {
       const nextProfile = {
         ...current.profile,
         ...profile,
@@ -140,7 +148,7 @@ function App() {
   };
 
   const updateNotifications = (notificationsUpdate: Partial<AppData['notifications']>) => {
-    setData((current) => ({
+    updateData((current) => ({
       ...current,
       notifications: {
         ...(current.notifications ?? createDefaultNotificationSettings()),
@@ -149,8 +157,22 @@ function App() {
     }));
   };
 
+  const updateWorkouts = (workouts: WorkoutPlan[]) => {
+    updateData((current) => ({
+      ...current,
+      workouts,
+    }));
+  };
+
+  const updateWeekPlan = (weekPlan: WeekPlanItem[]) => {
+    updateData((current) => ({
+      ...current,
+      weekPlan,
+    }));
+  };
+
   const addProgress = (entry: ProgressEntry) => {
-    setData((current) => ({
+    updateData((current) => ({
       ...current,
       profile: {
         ...current.profile,
@@ -165,7 +187,7 @@ function App() {
   const resetData = () => {
     const confirmed = window.confirm('Reiniciar todos os dados locais do Ana Fit Planner?');
     if (confirmed) {
-      setData(createInitialData());
+      setStoredData(createInitialData());
       setActiveTab('today');
     }
   };
@@ -186,6 +208,8 @@ function App() {
             todayPlan={todayPlan}
             onExerciseLogChange={updateExerciseLog}
             onToggleCheck={toggleCheck}
+            onWeekPlanChange={updateWeekPlan}
+            onWorkoutsChange={updateWorkouts}
           />
         ) : null}
         {activeTab === 'diet' ? (

@@ -1,6 +1,7 @@
 import { Check, Dumbbell } from 'lucide-react';
 import type { Exercise, ExerciseLog } from '../types';
 import { getExerciseFeedback } from '../utils/progressRules';
+import { formatSetLabel, getMuscleLabel } from '../utils/workoutVolume';
 import { Card } from './Card';
 
 type ExerciseCardProps = {
@@ -32,9 +33,21 @@ export function ExerciseCard({ exercise, log = defaultLog, onChange }: ExerciseC
             <h3 className="text-base font-semibold leading-tight text-slate-950">{exercise.name}</h3>
           </div>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            {exercise.sets} · {exercise.reps} · Descanso {exercise.rest}
+            {formatSetLabel(exercise)} · {exercise.reps} · Descanso {exercise.rest}
             {exercise.rir ? ` · ${exercise.rir}` : ''}
           </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {exercise.targets.map((target, index) => (
+              <span
+                className={`rounded-md px-2 py-1 text-[0.7rem] font-bold uppercase tracking-wide ${
+                  target.role === 'primary' ? 'bg-rose-500/15 text-rose-100' : 'bg-white/5 text-slate-400'
+                }`}
+                key={`${exercise.id}-${target.muscle}-${target.role}-${index}`}
+              >
+                {getMuscleLabel(target.muscle)} {target.role === 'secondary' ? '0,5x' : '1x'}
+              </span>
+            ))}
+          </div>
           {exercise.note ? <p className="mt-2 text-sm text-slate-500">{exercise.note}</p> : null}
         </div>
         <button
