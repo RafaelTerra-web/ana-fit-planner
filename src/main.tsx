@@ -11,8 +11,11 @@ createRoot(document.getElementById('root')!).render(
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // The PWA remains usable without the service worker.
-    });
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((registration) => registration.update())
+      .catch(() => {
+        // The PWA remains usable without the service worker.
+      });
   });
 }

@@ -185,7 +185,8 @@ function inferTargets(name: string): ExerciseTarget[] {
 }
 
 function normalizeTargets(targets: ExerciseTarget[] | undefined, exerciseName: string) {
-  const normalizedTargets = targets
+  const safeTargets = Array.isArray(targets) ? targets : undefined;
+  const normalizedTargets = safeTargets
     ?.filter((target) => validMuscles.has(target.muscle))
     .map((target) => ({
       muscle: target.muscle,

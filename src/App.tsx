@@ -66,17 +66,55 @@ function normalizeDailyChecks(checks: DailyChecks | undefined, meals: Meal[]): D
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeAppData(value: unknown): AppData {
+  const fallback = createInitialData();
+
+  if (!isRecord(value)) {
+    return fallback;
+  }
+
+  const profile = isRecord(value.profile) ? value.profile : {};
+  const goals = isRecord(value.goals) ? value.goals : {};
+  const notifications = isRecord(value.notifications) ? value.notifications : {};
+
+  return normalizeWorkoutData({
+    profile: {
+      ...fallback.profile,
+      ...profile,
+      theme: 'dark',
+    },
+    goals: {
+      ...fallback.goals,
+      ...goals,
+    },
+    meals: Array.isArray(value.meals) ? (value.meals as Meal[]) : fallback.meals,
+    notifications: {
+      ...fallback.notifications,
+      ...notifications,
+    },
+    workouts: Array.isArray(value.workouts) ? (value.workouts as WorkoutPlan[]) : fallback.workouts,
+    weekPlan: Array.isArray(value.weekPlan) ? (value.weekPlan as WeekPlanItem[]) : fallback.weekPlan,
+    dailyChecks: isRecord(value.dailyChecks) ? (value.dailyChecks as Record<string, DailyChecks>) : fallback.dailyChecks,
+    exerciseLogs: isRecord(value.exerciseLogs) ? (value.exerciseLogs as Record<string, ExerciseLog>) : fallback.exerciseLogs,
+    progressEntries: Array.isArray(value.progressEntries) ? (value.progressEntries as ProgressEntry[]) : fallback.progressEntries,
+  });
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>(getInitialTab);
-  const [storedData, setStoredData] = useLocalStorage<AppData>(STORAGE_KEY, createInitialData);
-  const data = useMemo(() => normalizeWorkoutData(storedData), [storedData]);
+  const [storedData, setStoredData] = useLocalStorage<unknown>(STORAGE_KEY, createInitialData);
+  const data = useMemo(() => normalizeAppData(storedData), [storedData]);
   const notifications = data.notifications ?? createDefaultNotificationSettings();
   const dateKey = getDateKey();
   const todayPlan = useMemo(() => getTodayPlan(data.weekPlan), [data.weekPlan]);
   const todayChecks = normalizeDailyChecks(data.dailyChecks[dateKey], data.meals);
 
   const updateData = (updater: (current: AppData) => AppData) => {
-    setStoredData((current) => normalizeWorkoutData(updater(normalizeWorkoutData(current))));
+    setStoredData((current: unknown) => normalizeAppData(updater(normalizeAppData(current))));
   };
 
   const updateTodayChecks = (updater: (checks: DailyChecks) => DailyChecks) => {

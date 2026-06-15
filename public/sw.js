@@ -1,5 +1,5 @@
-const CACHE_NAME = 'ana-fit-planner-v2';
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg', '/pwa-icon.svg'];
+const CACHE_NAME = 'ana-fit-planner-v3';
+const APP_SHELL = ['/index.html', '/manifest.webmanifest', '/favicon.svg', '/pwa-icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -20,14 +20,32 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) {
-        return cached;
-      }
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', responseClone));
+          return response;
+        })
+        .catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
 
-      return fetch(event.request).catch(() => caches.match('/index.html'));
-    })
+  event.respondWith(
+    caches.match(event.request).then(
+      (cached) =>
+        cached ??
+        fetch(event.request).then((response) => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
+
+          return response;
+        })
+    )
   );
 });
 
