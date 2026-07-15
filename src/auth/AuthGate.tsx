@@ -245,7 +245,7 @@ function SetPasswordScreen({ user, onComplete }: { user: User; onComplete: (user
 async function prepareUserData(userId: string): Promise<MigrationResult> {
   if (!supabase) throw new Error('Supabase is not configured.');
 
-  const { data: remoteRow, error } = await supabase.from('user_app_data').select('data').eq('user_id', userId).maybeSingle();
+  const { data: remoteRow, error } = await supabase.from('anfit_user_app_data').select('data').eq('user_id', userId).maybeSingle();
   if (error) throw error;
 
   const previousOwner = window.localStorage.getItem(CLOUD_OWNER_STORAGE_KEY);
@@ -257,7 +257,7 @@ async function prepareUserData(userId: string): Promise<MigrationResult> {
   const pendingMarker = readCloudPendingMarker();
 
   if (pendingMarker?.ownerId === userId && localCopy) {
-    const { error: pendingUploadError } = await supabase.from('user_app_data').upsert({ user_id: userId, data: localCopy.data });
+    const { error: pendingUploadError } = await supabase.from('anfit_user_app_data').upsert({ user_id: userId, data: localCopy.data });
     if (pendingUploadError) throw pendingUploadError;
 
     if (localCopy.source !== APP_STORAGE_KEY) {
@@ -276,7 +276,7 @@ async function prepareUserData(userId: string): Promise<MigrationResult> {
   }
 
   if (localCopy) {
-    const { error: uploadError } = await supabase.from('user_app_data').upsert({ user_id: userId, data: localCopy.data });
+    const { error: uploadError } = await supabase.from('anfit_user_app_data').upsert({ user_id: userId, data: localCopy.data });
     if (uploadError) throw uploadError;
 
     if (localCopy.source !== APP_STORAGE_KEY) {

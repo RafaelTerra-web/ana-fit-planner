@@ -36,7 +36,7 @@ export function useCloudSync(data: unknown) {
 
       const uploadVersion = currentMarker?.ownerId === userId ? currentMarker.version : markCloudDataPending(userId);
       setStatus('saving');
-      const { error } = await supabase.from('user_app_data').upsert({ user_id: userId, data: dataToUpload });
+      const { error } = await supabase.from('anfit_user_app_data').upsert({ user_id: userId, data: dataToUpload });
       if (error) {
         setStatus(navigator.onLine ? 'error' : 'offline');
         return false;
