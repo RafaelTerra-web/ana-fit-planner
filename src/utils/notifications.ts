@@ -158,8 +158,8 @@ export async function showRestCompleteNotification(exerciseName: string, alarmId
 
   const options: NotificationOptions & { renotify: boolean; requireInteraction: boolean; vibrate: number[] } = {
     body: `${exerciseName}: hora da próxima série.`,
-    icon: '/pwa-icon.svg',
-    badge: '/pwa-icon.svg',
+    icon: '/pwa-icon-192.png',
+    badge: '/pwa-icon-192.png',
     tag: alarmId,
     renotify: true,
     requireInteraction: true,
@@ -185,8 +185,8 @@ export async function showTestNotification() {
   if (!registration) throw new Error('O aplicativo ainda está preparando os alertas. Tente novamente em instantes.');
   await registration.showNotification('Ana Fit Planner', {
     body: 'Notificações ativadas. Os lembretes de treino e refeições vão aparecer aqui.',
-    icon: '/pwa-icon.svg',
-    badge: '/pwa-icon.svg',
+    icon: '/pwa-icon-192.png',
+    badge: '/pwa-icon-192.png',
     tag: 'ana-fit-test',
     data: { url: '/?tab=diet' },
   });

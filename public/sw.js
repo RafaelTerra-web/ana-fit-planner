@@ -1,8 +1,11 @@
-const CACHE_NAME = 'ana-fit-planner-v6';
+const CACHE_NAME = 'ana-fit-planner-v7';
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/favicon.svg',
   '/pwa-icon.svg',
+  '/pwa-icon-192.png',
+  '/pwa-icon-512.png',
+  '/apple-touch-icon.png',
   ...['ferro', 'bronze', 'prata', 'ouro', 'platina', 'diamante', 'elite', 'olympia'].flatMap((rank) =>
     [3, 2, 1].map((division) => `/ranks/${rank}-${division}.png`)
   ),
@@ -123,8 +126,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: '/pwa-icon.svg',
-      badge: '/pwa-icon.svg',
+      icon: '/pwa-icon-192.png',
+      badge: '/pwa-icon-192.png',
       tag: payload.tag,
       renotify: Boolean(payload.renotify),
       requireInteraction: Boolean(payload.requireInteraction),

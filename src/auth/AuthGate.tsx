@@ -1,5 +1,5 @@
 import type { User } from '@supabase/supabase-js';
-import { CheckCircle2, Cloud, Dumbbell, Eye, EyeOff, LoaderCircle, LockKeyhole, LogIn, Mail } from 'lucide-react';
+import { Activity, CheckCircle2, Cloud, Dumbbell, Eye, EyeOff, LoaderCircle, LockKeyhole, LogIn, Mail, ShieldCheck, Sparkles, Trophy } from 'lucide-react';
 import { type FormEvent, type PropsWithChildren, useEffect, useState } from 'react';
 import { AuthContext, type ForgetAfterDays, type MigrationResult } from './authContext';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
@@ -33,19 +33,40 @@ function recordActivity() {
 
 function AuthShell({ children }: PropsWithChildren) {
   return (
-    <main className="flex min-h-svh items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center justify-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-lime-200/25 bg-lime-300 text-slate-950 shadow-[0_0_35px_rgba(190,242,100,0.2)]">
-            <Dumbbell size={25} aria-hidden="true" />
-          </span>
-          <div>
-            <p className="eyebrow">Ana Fit</p>
-            <p className="text-lg font-black tracking-tight text-white">Seu treino, sempre com você</p>
+    <main className="auth-page">
+      <div className="auth-glow auth-glow--lime" aria-hidden="true" />
+      <div className="auth-glow auth-glow--mint" aria-hidden="true" />
+      <div className="auth-layout">
+        <section className="auth-hero" aria-label="Ana Fit">
+          <div className="auth-brand">
+            <span className="auth-brand-mark">
+              <img src="/pwa-icon.svg" alt="" aria-hidden="true" />
+            </span>
+            <span>
+              <strong>Ana Fit</strong>
+              <small>Performance planner</small>
+            </span>
           </div>
-        </div>
-        <section className="premium-card rounded-[1.6rem] border border-white/10 bg-slate-900/90 p-5 shadow-soft sm:p-6">
+
+          <div className="auth-hero-copy">
+            <span className="auth-hero-kicker"><Sparkles size={14} aria-hidden="true" /> Seu próximo nível começa aqui</span>
+            <h2>Treine com foco.<br /><span>Evolua de verdade.</span></h2>
+            <p>Treinos, séries, hábitos e progresso em um só lugar — sempre sincronizados com você.</p>
+          </div>
+
+          <div className="auth-benefits" aria-label="Recursos do aplicativo">
+            <span><Dumbbell size={18} aria-hidden="true" /><strong>Séries</strong><small>sob medida</small></span>
+            <span><Activity size={18} aria-hidden="true" /><strong>Progresso</strong><small>visível</small></span>
+            <span><Trophy size={18} aria-hidden="true" /><strong>Ranks</strong><small>motivadores</small></span>
+          </div>
+        </section>
+
+        <section className="auth-panel premium-card">
           {children}
+          <div className="auth-secure-note">
+            <ShieldCheck size={17} aria-hidden="true" />
+            <span>Sessão protegida e progresso salvo na nuvem</span>
+          </div>
         </section>
       </div>
     </main>
@@ -80,11 +101,11 @@ function PasswordField({
   const [visible, setVisible] = useState(false);
 
   return (
-    <label className="block space-y-1.5 text-sm font-semibold text-slate-200" htmlFor={id}>
+    <label className="auth-field" htmlFor={id}>
       <span>{label}</span>
-      <span className="relative block">
+      <span className="auth-input-wrap">
         <input
-          className="input pr-12"
+          className="input auth-input pr-12"
           style={{ paddingRight: '3rem' }}
           id={id}
           type={visible ? 'text' : 'password'}
@@ -107,7 +128,7 @@ function PasswordField({
 }
 
 function LoginScreen() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('aakiraap@gmail.com');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -138,19 +159,19 @@ function LoginScreen() {
 
   return (
     <AuthShell>
-      <p className="eyebrow">Acesso protegido</p>
-      <h1 className="mt-2 text-2xl font-black tracking-tight text-white">{resetMode ? 'Recuperar acesso' : 'Bem-vinda de volta'}</h1>
-      <p className="mt-2 text-sm leading-relaxed text-slate-400">
-        {resetMode ? 'Enviaremos um link seguro para você escolher outra senha.' : 'Entre para carregar treinos, progresso e rank em qualquer dispositivo.'}
+      <span className="auth-panel-kicker">{resetMode ? <Mail size={14} aria-hidden="true" /> : <LogIn size={14} aria-hidden="true" />} {resetMode ? 'Recuperação segura' : 'Área da atleta'}</span>
+      <h1 className="auth-panel-title">{resetMode ? 'Recupere seu acesso' : 'Bem-vinda de volta, Ana'}</h1>
+      <p className="auth-panel-description">
+        {resetMode ? 'Enviaremos um link seguro para você escolher outra senha.' : 'Entre para continuar exatamente de onde parou.'}
       </p>
 
-      <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-        <label className="block space-y-1.5 text-sm font-semibold text-slate-200" htmlFor="login-email">
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <label className="auth-field" htmlFor="login-email">
           <span>E-mail</span>
-          <span className="relative block">
-            <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} aria-hidden="true" />
+          <span className="auth-input-wrap">
+            <Mail className="auth-input-icon" size={18} aria-hidden="true" />
             <input
-              className="input pl-10"
+              className="input auth-input pl-10"
               style={{ paddingLeft: '2.5rem' }}
               id="login-email"
               type="email"
@@ -166,14 +187,14 @@ function LoginScreen() {
         {!resetMode ? (
           <PasswordField id="login-password" label="Senha" value={password} onChange={setPassword} autoComplete="current-password" />
         ) : null}
-        {message ? <p className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-relaxed text-slate-300" role="status">{message}</p> : null}
-        <button className="primary-button w-full" type="submit" disabled={busy}>
+        {message ? <p className="auth-message" role="status">{message}</p> : null}
+        <button className="primary-button auth-submit w-full" type="submit" disabled={busy}>
           {busy ? <LoaderCircle className="animate-spin" size={19} aria-hidden="true" /> : resetMode ? <Mail size={19} aria-hidden="true" /> : <LogIn size={19} aria-hidden="true" />}
-          {busy ? 'Aguarde...' : resetMode ? 'Enviar link seguro' : 'Entrar'}
+          {busy ? 'Aguarde...' : resetMode ? 'Enviar link seguro' : 'Entrar no Ana Fit'}
         </button>
       </form>
 
-      <button className="mt-4 w-full text-sm font-bold text-lime-300" type="button" onClick={() => { setResetMode((current) => !current); setMessage(''); }}>
+      <button className="auth-link-button" type="button" onClick={() => { setResetMode((current) => !current); setMessage(''); }}>
         {resetMode ? 'Voltar para o login' : 'Esqueci minha senha'}
       </button>
     </AuthShell>
