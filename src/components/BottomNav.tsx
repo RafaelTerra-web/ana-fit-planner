@@ -24,7 +24,7 @@ export function BottomNav({ activeTab, onChange }: BottomNavProps) {
 
           return (
             <button
-              className={`bottom-nav-item relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[1rem] px-1 text-[0.7rem] font-bold leading-none transition ${
+              className={`bottom-nav-item flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[1rem] px-1 text-[0.7rem] font-bold leading-none transition ${
                 isActive
                   ? 'bg-lime-300/10 text-lime-200 shadow-[inset_0_0_0_1px_rgba(190,242,100,0.08)]'
                   : 'text-slate-500 hover:bg-white/5 hover:text-slate-200'
@@ -35,12 +35,6 @@ export function BottomNav({ activeTab, onChange }: BottomNavProps) {
               onClick={() => onChange(item.id)}
               aria-current={isActive ? 'page' : undefined}
             >
-              <span
-                className={`absolute top-1 h-0.5 w-5 rounded-full bg-lime-300 transition-opacity ${
-                  isActive ? 'opacity-100' : 'opacity-0'
-                }`}
-                aria-hidden="true"
-              />
               <span
                 className={`grid h-8 w-8 place-items-center rounded-xl transition ${
                   isActive ? 'bg-lime-300 text-slate-950 shadow-[0_6px_18px_rgba(190,242,100,0.24)]' : ''
