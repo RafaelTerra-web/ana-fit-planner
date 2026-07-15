@@ -70,6 +70,25 @@ Crie um novo site apontando para esta pasta e use:
 
 O `netlify.toml` já configura a aplicação como SPA.
 
+## Login e sincronização Supabase
+
+O app usa autenticação por e-mail e senha e mantém a sessão salva por padrão. Em **Ajustes**, a usuária pode optar por esquecer o login depois de 7, 30 ou 90 dias sem uso. O perfil, treinos, séries, dieta, progresso e rank ficam no `localStorage` como cache offline e na tabela `user_app_data` como cópia vinculada à conta.
+
+1. Crie um projeto Supabase e execute [`supabase/schema.sql`](supabase/schema.sql) no SQL Editor.
+2. Em **Authentication > URL Configuration**, defina `https://anfit.netlify.app` como Site URL e Redirect URL.
+3. Desative novos cadastros públicos em **Authentication > Providers > Email**; o app usa apenas convite administrativo.
+4. Em **Authentication > Sessions**, mantenha Time-box e Inactivity timeout desativados; o app controla localmente a opção de 7, 30 ou 90 dias sem uso.
+5. Configure no Netlify: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
+6. Para convidar a Ana no primeiro acesso, execute localmente com `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `ANA_EMAIL` e `SUPABASE_REDIRECT_URL` no ambiente:
+
+```bash
+npm run invite:ana
+```
+
+A chave secreta é usada somente pelo script administrativo e nunca deve receber o prefixo `VITE_`. O convite marca a conta com `force_password_change`; ao abrir o link, a usuária precisa criar uma nova senha antes que o app leia ou sincronize os dados do aparelho.
+
+No primeiro acesso feito pelo próprio iPhone, se ainda não houver dados na nuvem, a cópia `v5` (ou a antiga `v4`) do aparelho é enviada automaticamente. Se a nuvem já tiver dados, ela é restaurada antes da abertura do aplicativo.
+
 Para notificações push no iPhone, configure:
 
 - `VITE_VAPID_PUBLIC_KEY`

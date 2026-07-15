@@ -1,6 +1,8 @@
-import { Bell, RotateCcw, Save, Send } from 'lucide-react';
+import { Bell, Cloud, CloudOff, LogOut, RefreshCw, RotateCcw, Save, Send, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth, type ForgetAfterDays } from '../auth/authContext';
 import { Card } from '../components/Card';
+import type { CloudSyncStatus } from '../hooks/useCloudSync';
 import type { AppData, Goals, NotificationSettings, Profile, Reminder } from '../types';
 import { estimateProtein } from '../utils/calculations';
 import { calculateDynamicGoals } from '../utils/dietCalculator';
@@ -12,13 +14,40 @@ type SettingsProps = {
   onGoalsChange: (goals: Partial<Goals>) => void;
   onNotificationsChange: (notifications: Partial<NotificationSettings>) => void;
   onResetData: () => void;
+  cloudSync: {
+    status: CloudSyncStatus;
+    lastSyncedAt: string | null;
+    retry: () => Promise<boolean>;
+  };
 };
 
-export function Settings({ data, onProfileChange, onGoalsChange, onNotificationsChange, onResetData }: SettingsProps) {
+const forgetOptions: Array<{ value: ForgetAfterDays; label: string }> = [
+  { value: null, label: 'Nunca esquecer' },
+  { value: 7, label: 'Após 7 dias sem uso' },
+  { value: 30, label: 'Após 30 dias sem uso' },
+  { value: 90, label: 'Após 90 dias sem uso' },
+];
+
+export function Settings({ data, onProfileChange, onGoalsChange, onNotificationsChange, onResetData, cloudSync }: SettingsProps) {
   const [notificationMessage, setNotificationMessage] = useState('');
+  const { user, migrationResult, forgetAfterDays, setForgetAfterDays, signOut } = useAuth();
   const proteinRange = estimateProtein(data.profile.weightKg);
   const suggestedGoals = calculateDynamicGoals(data.profile);
   const supportMessage = getNotificationSupportMessage();
+  const syncMessage =
+    cloudSync.status === 'saving'
+      ? 'Salvando na nuvem...'
+      : cloudSync.status === 'offline'
+        ? 'Sem internet — alterações protegidas neste aparelho'
+        : cloudSync.status === 'error'
+          ? 'Falha ao sincronizar. Toque para tentar novamente.'
+          : cloudSync.lastSyncedAt
+            ? `Nuvem atualizada às ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(cloudSync.lastSyncedAt))}`
+            : migrationResult === 'uploaded'
+              ? 'Dados deste iPhone enviados para sua conta'
+              : migrationResult === 'downloaded'
+                ? 'Dados da sua conta carregados neste aparelho'
+                : 'Dados protegidos e sincronizados';
 
   const updateReminder = (reminderId: string, changes: Partial<Reminder>) => {
     onNotificationsChange({
@@ -59,8 +88,57 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
       <header className="pt-2">
         <p className="text-sm font-semibold text-rose-700">Preferências e metas</p>
         <h1 className="page-title mt-1">Ajustes</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">Dados locais salvos no navegador.</p>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">Conta protegida com cópia local e sincronização na nuvem.</p>
       </header>
+
+      <Card>
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-lime-300/10 text-lime-300">
+            <ShieldCheck size={23} aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="section-title">Conta da Ana</h2>
+            <p className="mt-1 truncate text-sm text-slate-400">{user.email}</p>
+          </div>
+        </div>
+
+        <button
+          className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-left"
+          type="button"
+          onClick={() => { if (cloudSync.status === 'error' || cloudSync.status === 'offline') void cloudSync.retry(); }}
+        >
+          {cloudSync.status === 'offline' || cloudSync.status === 'error' ? (
+            <CloudOff className="shrink-0 text-amber-300" size={20} aria-hidden="true" />
+          ) : cloudSync.status === 'saving' ? (
+            <RefreshCw className="shrink-0 animate-spin text-lime-300" size={20} aria-hidden="true" />
+          ) : (
+            <Cloud className="shrink-0 text-lime-300" size={20} aria-hidden="true" />
+          )}
+          <span className="text-sm font-semibold leading-snug text-slate-300">{syncMessage}</span>
+        </button>
+
+        <label className="mt-4 block space-y-1.5 text-sm font-semibold text-slate-200" htmlFor="forget-login">
+          <span>Esquecer login neste iPhone</span>
+          <select
+            className="input"
+            id="forget-login"
+            value={forgetAfterDays ?? 'never'}
+            onChange={(event) => setForgetAfterDays(event.target.value === 'never' ? null : Number(event.target.value) as 7 | 30 | 90)}
+          >
+            {forgetOptions.map((option) => (
+              <option key={option.label} value={option.value ?? 'never'}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        <p className="mt-2 text-xs leading-relaxed text-slate-500">
+          “Nunca esquecer” mantém a conta conectada. Nos outros prazos, o contador reinicia sempre que o app é usado.
+        </p>
+
+        <button className="secondary-button mt-4 w-full" type="button" onClick={() => void cloudSync.retry().finally(signOut)}>
+          <LogOut size={18} aria-hidden="true" />
+          Sair da conta agora
+        </button>
+      </Card>
 
       <Card>
         <h2 className="section-title">Perfil</h2>

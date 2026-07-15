@@ -15,7 +15,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['netlify/functions/**/*.mjs'],
+    files: ['netlify/functions/**/*.mjs', 'scripts/**/*.mjs'],
     languageOptions: {
       globals: globals.node,
     },

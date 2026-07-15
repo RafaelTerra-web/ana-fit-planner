@@ -8,10 +8,12 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "invite:ana": "node scripts/invite-ana.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.9",
+    "@supabase/supabase-js": "^2.110.6",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

@@ -4,6 +4,8 @@ import { RankLevelUpModal } from './components/RankLevelUpModal';
 import { defaultGoals, defaultMeals, defaultProfile } from './data/dietPlan';
 import { getTodayPlan } from './data/workoutPlan';
 import { useLocalStorage } from './hooks/useLocalStorage';
+import { useCloudSync } from './hooks/useCloudSync';
+import { APP_STORAGE_KEY, LEGACY_APP_STORAGE_KEY } from './lib/storage';
 import { Diet } from './pages/Diet';
 import { Progress } from './pages/Progress';
 import { Settings } from './pages/Settings';
@@ -43,9 +45,6 @@ import {
   reconcileWorkoutSession,
 } from './utils/workoutSessions';
 import { createDefaultWeekPlan, createDefaultWorkouts, normalizeWorkoutData } from './utils/workoutVolume';
-
-const STORAGE_KEY = 'ana-fit-planner:data:v5';
-const LEGACY_STORAGE_KEY = 'ana-fit-planner:data:v4';
 
 const tabs: AppTab[] = ['today', 'workout', 'diet', 'progress', 'settings'];
 
@@ -91,7 +90,7 @@ function getInitialStoredData() {
   }
 
   try {
-    const legacyValue = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    const legacyValue = window.localStorage.getItem(LEGACY_APP_STORAGE_KEY);
     return legacyValue ? (JSON.parse(legacyValue) as unknown) : createInitialData();
   } catch {
     return createInitialData();
@@ -175,7 +174,7 @@ function normalizeAppData(value: unknown): AppData {
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>(getInitialTab);
   const [dateKey, setDateKey] = useState(getLocalDateKey);
-  const [storedData, setStoredData] = useLocalStorage<unknown>(STORAGE_KEY, getInitialStoredData);
+  const [storedData, setStoredData] = useLocalStorage<unknown>(APP_STORAGE_KEY, getInitialStoredData);
   const normalizedData = useMemo(() => normalizeAppData(storedData), [storedData]);
   const data = useMemo(() => {
     const rank = applyRankInactivityDecay(normalizedData.rank);
@@ -185,6 +184,7 @@ function App() {
   const lastObservedCelebrationRef = useRef(data.rank.lastCelebratedLevelId);
   const pendingRankCelebrationRef = useRef<RankLevel | null>(null);
   const notifications = data.notifications ?? createDefaultNotificationSettings();
+  const cloudSync = useCloudSync(data);
   const todayPlan = getTodayPlan(data.weekPlan);
   const todayChecks = normalizeDailyChecks(data.dailyChecks[dateKey], data.meals);
 
@@ -606,6 +606,7 @@ function App() {
             onGoalsChange={updateGoals}
             onNotificationsChange={updateNotifications}
             onResetData={resetData}
+            cloudSync={cloudSync}
           />
         ) : null}
         </div>

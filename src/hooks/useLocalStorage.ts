@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { APP_STORAGE_KEY, CLOUD_OWNER_STORAGE_KEY, markCloudDataPending } from '../lib/storage';
 
 type InitialValue<T> = T | (() => T);
 
@@ -23,6 +24,10 @@ export function useLocalStorage<T>(key: string, initialValue: InitialValue<T>) {
   useEffect(() => {
     try {
       window.localStorage.setItem(key, JSON.stringify(value));
+      const ownerId = window.localStorage.getItem(CLOUD_OWNER_STORAGE_KEY);
+      if (key === APP_STORAGE_KEY && ownerId) {
+        markCloudDataPending(ownerId);
+      }
     } catch {
       // LocalStorage can fail in private mode. The app still works for the current session.
     }
