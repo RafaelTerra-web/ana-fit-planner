@@ -93,31 +93,41 @@ export const RANK_TIERS: readonly RankTier[] = [
 ] as const;
 
 export const RANK_LEVELS: readonly RankLevel[] = [
-  { id: 'ferro-3', tier: 'ferro', label: 'Ferro', division: 3, minXp: 0, crestSrc: '/ranks/ferro-3.png' },
+  { id: 'ferro-1', tier: 'ferro', label: 'Ferro', division: 1, minXp: 0, crestSrc: '/ranks/ferro-1.png' },
   { id: 'ferro-2', tier: 'ferro', label: 'Ferro', division: 2, minXp: 300, crestSrc: '/ranks/ferro-2.png' },
-  { id: 'ferro-1', tier: 'ferro', label: 'Ferro', division: 1, minXp: 700, crestSrc: '/ranks/ferro-1.png' },
-  { id: 'bronze-3', tier: 'bronze', label: 'Bronze', division: 3, minXp: 1_200, crestSrc: '/ranks/bronze-3.png' },
+  { id: 'ferro-3', tier: 'ferro', label: 'Ferro', division: 3, minXp: 700, crestSrc: '/ranks/ferro-3.png' },
+  { id: 'bronze-1', tier: 'bronze', label: 'Bronze', division: 1, minXp: 1_200, crestSrc: '/ranks/bronze-1.png' },
   { id: 'bronze-2', tier: 'bronze', label: 'Bronze', division: 2, minXp: 1_800, crestSrc: '/ranks/bronze-2.png' },
-  { id: 'bronze-1', tier: 'bronze', label: 'Bronze', division: 1, minXp: 2_500, crestSrc: '/ranks/bronze-1.png' },
-  { id: 'prata-3', tier: 'prata', label: 'Prata', division: 3, minXp: 3_300, crestSrc: '/ranks/prata-3.png' },
+  { id: 'bronze-3', tier: 'bronze', label: 'Bronze', division: 3, minXp: 2_500, crestSrc: '/ranks/bronze-3.png' },
+  { id: 'prata-1', tier: 'prata', label: 'Prata', division: 1, minXp: 3_300, crestSrc: '/ranks/prata-1.png' },
   { id: 'prata-2', tier: 'prata', label: 'Prata', division: 2, minXp: 4_200, crestSrc: '/ranks/prata-2.png' },
-  { id: 'prata-1', tier: 'prata', label: 'Prata', division: 1, minXp: 5_200, crestSrc: '/ranks/prata-1.png' },
-  { id: 'ouro-3', tier: 'ouro', label: 'Ouro', division: 3, minXp: 6_300, crestSrc: '/ranks/ouro-3.png' },
+  { id: 'prata-3', tier: 'prata', label: 'Prata', division: 3, minXp: 5_200, crestSrc: '/ranks/prata-3.png' },
+  { id: 'ouro-1', tier: 'ouro', label: 'Ouro', division: 1, minXp: 6_300, crestSrc: '/ranks/ouro-1.png' },
   { id: 'ouro-2', tier: 'ouro', label: 'Ouro', division: 2, minXp: 7_500, crestSrc: '/ranks/ouro-2.png' },
-  { id: 'ouro-1', tier: 'ouro', label: 'Ouro', division: 1, minXp: 8_800, crestSrc: '/ranks/ouro-1.png' },
-  { id: 'platina-3', tier: 'platina', label: 'Platina', division: 3, minXp: 10_200, crestSrc: '/ranks/platina-3.png' },
+  { id: 'ouro-3', tier: 'ouro', label: 'Ouro', division: 3, minXp: 8_800, crestSrc: '/ranks/ouro-3.png' },
+  { id: 'platina-1', tier: 'platina', label: 'Platina', division: 1, minXp: 10_200, crestSrc: '/ranks/platina-1.png' },
   { id: 'platina-2', tier: 'platina', label: 'Platina', division: 2, minXp: 11_700, crestSrc: '/ranks/platina-2.png' },
-  { id: 'platina-1', tier: 'platina', label: 'Platina', division: 1, minXp: 13_300, crestSrc: '/ranks/platina-1.png' },
-  { id: 'diamante-3', tier: 'diamante', label: 'Diamante', division: 3, minXp: 15_000, crestSrc: '/ranks/diamante-3.png' },
+  { id: 'platina-3', tier: 'platina', label: 'Platina', division: 3, minXp: 13_300, crestSrc: '/ranks/platina-3.png' },
+  { id: 'diamante-1', tier: 'diamante', label: 'Diamante', division: 1, minXp: 15_000, crestSrc: '/ranks/diamante-1.png' },
   { id: 'diamante-2', tier: 'diamante', label: 'Diamante', division: 2, minXp: 16_800, crestSrc: '/ranks/diamante-2.png' },
-  { id: 'diamante-1', tier: 'diamante', label: 'Diamante', division: 1, minXp: 18_700, crestSrc: '/ranks/diamante-1.png' },
-  { id: 'elite-3', tier: 'elite', label: 'Elite', division: 3, minXp: 20_700, crestSrc: '/ranks/elite-3.png' },
+  { id: 'diamante-3', tier: 'diamante', label: 'Diamante', division: 3, minXp: 18_700, crestSrc: '/ranks/diamante-3.png' },
+  { id: 'elite-1', tier: 'elite', label: 'Elite', division: 1, minXp: 20_700, crestSrc: '/ranks/elite-1.png' },
   { id: 'elite-2', tier: 'elite', label: 'Elite', division: 2, minXp: 22_800, crestSrc: '/ranks/elite-2.png' },
-  { id: 'elite-1', tier: 'elite', label: 'Elite', division: 1, minXp: 25_000, crestSrc: '/ranks/elite-1.png' },
-  { id: 'olympia-3', tier: 'olympia', label: 'Olympia', division: 3, minXp: 27_500, crestSrc: '/ranks/olympia-3.png' },
+  { id: 'elite-3', tier: 'elite', label: 'Elite', division: 3, minXp: 25_000, crestSrc: '/ranks/elite-3.png' },
+  { id: 'olympia-1', tier: 'olympia', label: 'Olympia', division: 1, minXp: 27_500, crestSrc: '/ranks/olympia-1.png' },
   { id: 'olympia-2', tier: 'olympia', label: 'Olympia', division: 2, minXp: 30_500, crestSrc: '/ranks/olympia-2.png' },
-  { id: 'olympia-1', tier: 'olympia', label: 'Olympia', division: 1, minXp: 34_000, crestSrc: '/ranks/olympia-1.png' },
+  { id: 'olympia-3', tier: 'olympia', label: 'Olympia', division: 3, minXp: 34_000, crestSrc: '/ranks/olympia-3.png' },
 ] as const;
+
+function getRankLevelIndex(levelId: RankLevelId | undefined) {
+  return levelId ? RANK_LEVELS.findIndex((level) => level.id === levelId) : -1;
+}
+
+function migrateLegacyRankLevelId(levelId: RankLevelId) {
+  const [tier, division] = levelId.split('-') as [RankTierId, '1' | '2' | '3'];
+  const migratedDivision = division === '1' ? '3' : division === '3' ? '1' : '2';
+  return `${tier}-${migratedDivision}` as RankLevelId;
+}
 
 export const RANK_XP = {
   cardio: 35,
@@ -128,9 +138,9 @@ export const RANK_XP = {
 } as const satisfies Record<Exclude<RankXpKind, 'workout' | 'inactivity-decay'>, number>;
 
 const ROMAN_DIVISIONS: Record<RankDivision, string> = {
-  3: 'III',
-  2: 'II',
   1: 'I',
+  2: 'II',
+  3: 'III',
 };
 
 function normalizeXp(value: number) {
@@ -292,10 +302,10 @@ export function getIsoWeekKey(dateKey: string) {
 
 export function createInitialRankState(date = new Date()): RankState {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     startedOn: getLocalDateKey(date),
     events: {},
-    lastCelebratedLevelId: 'ferro-3',
+    lastCelebratedLevelId: 'ferro-1',
   };
 }
 
@@ -354,12 +364,17 @@ export function normalizeRankState(value: unknown, now = new Date()): RankState 
     typeof value.startedOn === 'string' && parseDateKey(value.startedOn) && value.startedOn <= currentDateKey
     ? value.startedOn
     : fallback.startedOn;
-  const lastCelebratedLevelId = typeof value.lastCelebratedLevelId === 'string' &&
-    RANK_LEVELS.some((level) => level.id === value.lastCelebratedLevelId)
+  const isLegacySubdivisionOrder = value.schemaVersion !== 3;
+  const hasStoredCelebratedLevelId = typeof value.lastCelebratedLevelId === 'string' &&
+    RANK_LEVELS.some((level) => level.id === value.lastCelebratedLevelId);
+  const rawLastCelebratedLevelId = hasStoredCelebratedLevelId
     ? (value.lastCelebratedLevelId as RankLevelId)
-    : fallback.lastCelebratedLevelId;
+    : fallback.lastCelebratedLevelId ?? 'ferro-1';
+  const lastCelebratedLevelId = hasStoredCelebratedLevelId && isLegacySubdivisionOrder
+    ? migrateLegacyRankLevelId(rawLastCelebratedLevelId)
+    : rawLastCelebratedLevelId;
   const normalizedBaseState: RankState = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     startedOn,
     events,
     lastCelebratedLevelId,
@@ -417,7 +432,7 @@ export function claimRankEvent(state: RankState, event: RankXpEvent | null | und
     return state;
   }
 
-  return {
+  const nextState: RankState = {
     ...state,
     events: {
       ...state.events,
@@ -427,6 +442,18 @@ export function claimRankEvent(state: RankState, event: RankXpEvent | null | und
       },
     },
   };
+
+  const previousLevel = getRankLevel(totalRankXp(state));
+  const nextLevel = getRankLevel(totalRankXp(nextState));
+  const latestCelebratedIndex = getRankLevelIndex(state.lastCelebratedLevelId);
+  const isNewHighestLevel =
+    xp > 0 &&
+    getRankLevelIndex(nextLevel.id) > getRankLevelIndex(previousLevel.id) &&
+    getRankLevelIndex(nextLevel.id) > latestCelebratedIndex;
+
+  return isNewHighestLevel
+    ? { ...nextState, lastCelebratedLevelId: nextLevel.id }
+    : nextState;
 }
 
 export function getRankInactivityStatus(state: RankState, now = new Date()): RankInactivityStatus {

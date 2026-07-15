@@ -1,6 +1,7 @@
 import {
   Check,
   ChevronsDown,
+  Crown,
   Dumbbell,
   Footprints,
   GlassWater,
@@ -51,7 +52,7 @@ export function RankJourney({ rank, className = '' }: RankJourneyProps) {
           Jornada de ranks
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-400">
-          Cada rank avança de III para II e I. Sua constância libera o próximo brasão.
+          Cada rank avança de I para II e III. Sua constância libera o próximo brasão até o Olympia III, o cume da jornada.
         </p>
       </div>
 
@@ -137,25 +138,33 @@ export function RankJourney({ rank, className = '' }: RankJourneyProps) {
                 {levels.map((level) => {
                   const isCurrent = level.id === progress.current.id;
                   const isUnlocked = totalXp >= level.minXp;
+                  const isOlympiaFinal = level.id === 'olympia-3';
 
                   return (
                     <span
                       aria-current={isCurrent ? 'step' : undefined}
                       aria-label={`${formatRankName(level)}, ${numberFormatter.format(level.minXp)} XP${isCurrent ? ', rank atual' : isUnlocked ? ', liberado' : ', bloqueado'}`}
                       className={`flex min-w-0 flex-col items-center justify-center rounded-lg border px-0.5 py-1.5 text-xs font-black ${
-                        isCurrent
-                          ? 'border-teal-300 bg-teal-300/15 text-teal-100'
-                          : isUnlocked
-                            ? 'border-white/15 bg-white/10 text-white'
-                            : 'border-white/5 bg-slate-950/60 text-slate-600'
+                        isOlympiaFinal
+                          ? isCurrent
+                            ? 'border-amber-200/90 bg-gradient-to-b from-amber-300/25 via-violet-400/15 to-amber-200/10 text-amber-50 shadow-[0_0_20px_rgba(251,191,36,0.28)]'
+                            : isUnlocked
+                              ? 'border-amber-200/50 bg-amber-300/10 text-amber-100'
+                              : 'border-amber-200/20 bg-amber-300/[0.045] text-amber-100/50'
+                          : isCurrent
+                            ? 'border-teal-300 bg-teal-300/15 text-teal-100'
+                            : isUnlocked
+                              ? 'border-white/15 bg-white/10 text-white'
+                              : 'border-white/5 bg-slate-950/60 text-slate-600'
                       }`}
                       key={level.id}
                       role="listitem"
-                      title={`${numberFormatter.format(level.minXp)} XP`}
+                      title={`${numberFormatter.format(level.minXp)} XP${isOlympiaFinal ? ' · Cume da jornada' : ''}`}
                     >
                       <RankBadge className={isUnlocked ? '' : 'grayscale'} level={level} size="xs" />
                       <span className="mt-0.5 flex items-center gap-0.5">
                         {isUnlocked && !isCurrent ? <Check size={9} aria-hidden="true" /> : null}
+                        {isOlympiaFinal ? <Crown size={9} aria-hidden="true" /> : null}
                         {getDivisionRoman(level.division)}
                       </span>
                     </span>

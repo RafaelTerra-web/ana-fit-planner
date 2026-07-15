@@ -40,7 +40,7 @@ O sistema premia consistência e não concede XP por perder peso, reduzir medida
 
 Treinos, cardio, nutrição e check-ins são atividades centrais. Cada nova atividade central concede **14 dias de proteção**. Depois disso, o ledger registra uma perda semanal de **2% do XP atual**, com mínimo de **50 XP**, máximo de **300 XP** e sem deixar o total negativo. A perda pode rebaixar divisão ou rank. Água e passos continuam concedendo XP, mas não reiniciam a proteção de inatividade.
 
-Em uma rotina completa de quatro treinos, três cardios, hábitos diários e um check-in semanal, o teto é próximo de 895 XP por semana. Assim, Olympia I exige cerca de 38 semanas de consistência máxima e normalmente leva mais tempo.
+Em uma rotina completa de quatro treinos, três cardios, hábitos diários e um check-in semanal, o teto é próximo de 895 XP por semana. Assim, Olympia III exige cerca de 38 semanas de consistência máxima e normalmente leva mais tempo.
 
 ## Instalar
 

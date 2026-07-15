@@ -36,16 +36,25 @@ const tierGlowClasses: Record<RankTierId, string> = {
   olympia: 'from-amber-200/35 to-orange-700/10 shadow-amber-200/20',
 };
 
+const tierAuraClasses: Partial<Record<RankTierId, string>> = {
+  platina: 'rank-badge--glow-platina',
+  diamante: 'rank-badge--glow-diamante',
+  elite: 'rank-badge--glow-elite',
+  olympia: 'rank-badge--glow-olympia',
+};
+
 export function RankBadge({ level, size = 'md', className = '' }: RankBadgeProps) {
   const classes = sizeClasses[size];
   const accessibleName = formatRankName(level);
+  const isOlympiaFinal = level.id === 'olympia-3';
+  const isOlympia = level.tier === 'olympia';
 
   return (
     <span
-      className={`relative inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-b p-1 shadow-lg ${classes.wrapper} ${tierGlowClasses[level.tier]} ${className}`}
+      className={`relative inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-b p-1 shadow-lg ${classes.wrapper} ${tierGlowClasses[level.tier]} ${tierAuraClasses[level.tier] ?? ''} ${isOlympiaFinal ? 'rank-badge--olympia-iii' : ''} ${className}`}
     >
       <img
-        className="h-full w-full object-contain drop-shadow-[0_8px_12px_rgba(0,0,0,0.35)]"
+        className={`h-full w-full object-contain drop-shadow-[0_8px_12px_rgba(0,0,0,0.35)] ${isOlympia ? 'rank-badge__crest--olympia' : ''}`}
         src={level.crestSrc}
         alt={`Brasão do rank ${accessibleName}`}
       />

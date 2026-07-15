@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BottomNav } from './components/BottomNav';
+import { RankLevelUpModal } from './components/RankLevelUpModal';
 import { defaultGoals, defaultMeals, defaultProfile } from './data/dietPlan';
 import { getTodayPlan } from './data/workoutPlan';
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -28,7 +29,10 @@ import {
   claimRankEvent,
   createInitialRankState,
   createRankEvent,
+  getRankProgress,
   normalizeRankState,
+  totalRankXp,
+  type RankLevel,
 } from './utils/ranks';
 import {
   createWorkoutSession,
@@ -177,6 +181,9 @@ function App() {
     const rank = applyRankInactivityDecay(normalizedData.rank);
     return rank === normalizedData.rank ? normalizedData : { ...normalizedData, rank };
   }, [normalizedData]);
+  const [rankCelebration, setRankCelebration] = useState<RankLevel | null>(null);
+  const lastObservedCelebrationRef = useRef(data.rank.lastCelebratedLevelId);
+  const pendingRankCelebrationRef = useRef<RankLevel | null>(null);
   const notifications = data.notifications ?? createDefaultNotificationSettings();
   const todayPlan = getTodayPlan(data.weekPlan);
   const todayChecks = normalizeDailyChecks(data.dailyChecks[dateKey], data.meals);
@@ -191,6 +198,45 @@ function App() {
       setStoredData(data);
     }
   }, [data, setStoredData, storedData]);
+
+  useEffect(() => {
+    const showPendingCelebration = () => {
+      const pendingCelebration = pendingRankCelebrationRef.current;
+      if (!pendingCelebration || document.visibilityState !== 'visible' || !document.hasFocus()) {
+        return;
+      }
+
+      pendingRankCelebrationRef.current = null;
+      setRankCelebration(pendingCelebration);
+    };
+
+    window.addEventListener('focus', showPendingCelebration);
+    document.addEventListener('visibilitychange', showPendingCelebration);
+    return () => {
+      window.removeEventListener('focus', showPendingCelebration);
+      document.removeEventListener('visibilitychange', showPendingCelebration);
+    };
+  }, []);
+
+  useEffect(() => {
+    const celebratedLevelId = data.rank.lastCelebratedLevelId;
+    if (!celebratedLevelId || celebratedLevelId === lastObservedCelebrationRef.current) {
+      return;
+    }
+
+    lastObservedCelebrationRef.current = celebratedLevelId;
+    const currentLevel = getRankProgress(totalRankXp(data.rank)).current;
+    if (currentLevel.id !== celebratedLevelId) {
+      return;
+    }
+
+    if (document.visibilityState === 'visible' && document.hasFocus()) {
+      setRankCelebration(currentLevel);
+      return;
+    }
+
+    pendingRankCelebrationRef.current = currentLevel;
+  }, [data.rank]);
 
   useEffect(() => {
     const handlePopState = () => setActiveTab(getInitialTab());
@@ -513,14 +559,19 @@ function App() {
   const resetData = () => {
     const confirmed = window.confirm('Reiniciar todos os dados locais, sessões e rank do Ana Fit Planner?');
     if (confirmed) {
-      setStoredData(createInitialData());
+      const initialData = createInitialData();
+      lastObservedCelebrationRef.current = initialData.rank.lastCelebratedLevelId;
+      pendingRankCelebrationRef.current = null;
+      setRankCelebration(null);
+      setStoredData(initialData);
       changeTab('today');
     }
   };
 
   return (
-    <main className="app-page" data-theme={data.profile.theme}>
-      <div className="mx-auto max-w-lg">
+    <>
+      <main className="app-page" data-theme={data.profile.theme}>
+        <div className="mx-auto max-w-lg">
         {activeTab === 'today' ? (
           <Today
             data={data}
@@ -557,9 +608,11 @@ function App() {
             onResetData={resetData}
           />
         ) : null}
-      </div>
-      <BottomNav activeTab={activeTab} onChange={changeTab} />
-    </main>
+        </div>
+        <BottomNav activeTab={activeTab} onChange={changeTab} />
+      </main>
+      {rankCelebration ? <RankLevelUpModal level={rankCelebration} onDismiss={() => setRankCelebration(null)} /> : null}
+    </>
   );
 }
 

@@ -146,7 +146,7 @@ export function Progress({ data, onAddProgress }: ProgressProps) {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block">Ver os 24 ranks</span>
-            <span className="mt-0.5 block text-xs font-semibold text-slate-500">Ferro III até Olympia I</span>
+            <span className="mt-0.5 block text-xs font-semibold text-slate-500">Ferro I até Olympia III</span>
           </span>
           <ChevronDown className="manage-chevron text-slate-500 transition" size={19} aria-hidden="true" />
         </summary>

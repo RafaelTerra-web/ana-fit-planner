@@ -148,7 +148,7 @@ export type WorkoutSession = {
 
 export type RankTierId = 'ferro' | 'bronze' | 'prata' | 'ouro' | 'platina' | 'diamante' | 'elite' | 'olympia';
 
-export type RankDivision = 3 | 2 | 1;
+export type RankDivision = 1 | 2 | 3;
 
 export type RankLevelId = `${RankTierId}-${RankDivision}`;
 
@@ -171,7 +171,7 @@ export type RankXpEvent = {
 };
 
 export type RankState = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   startedOn: string;
   events: Record<string, RankXpEvent>;
   decayCursor?: {
