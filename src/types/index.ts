@@ -107,13 +107,78 @@ export type WeekPlanItem = {
   rest?: string;
 };
 
-export type ExerciseLog = {
+export type LegacyExerciseLog = {
   weight: string;
   reps: string;
   setsDone: string;
   rir: string;
   note: string;
   done: boolean;
+};
+
+export type ExerciseSetLog = {
+  id: string;
+  weight: string;
+  reps: string;
+  rir: string;
+  completed: boolean;
+};
+
+export type ExerciseLog = {
+  exerciseId: string;
+  exerciseName: string;
+  targetReps: string;
+  targetRir?: string;
+  plannedSetCount: number;
+  sets: ExerciseSetLog[];
+  note: string;
+};
+
+export type WorkoutSession = {
+  id: string;
+  dateKey: string;
+  workoutId: string;
+  workoutTitle: string;
+  startedAt: string;
+  completedAt?: string;
+  plannedSetCount: number;
+  exerciseOrder: string[];
+  exerciseLogs: Record<string, ExerciseLog>;
+};
+
+export type RankTierId = 'ferro' | 'bronze' | 'prata' | 'ouro' | 'platina' | 'diamante' | 'elite' | 'olympia';
+
+export type RankDivision = 3 | 2 | 1;
+
+export type RankLevelId = `${RankTierId}-${RankDivision}`;
+
+export type RankXpKind =
+  | 'workout'
+  | 'cardio'
+  | 'nutrition'
+  | 'water'
+  | 'steps'
+  | 'progress-checkin'
+  | 'inactivity-decay';
+
+export type RankXpEvent = {
+  id: string;
+  kind: RankXpKind;
+  xp: number;
+  dateKey: string;
+  sourceId: string;
+  awardedAt: string;
+};
+
+export type RankState = {
+  schemaVersion: 2;
+  startedOn: string;
+  events: Record<string, RankXpEvent>;
+  decayCursor?: {
+    anchorTimestamp: number;
+    processedCheckpoints: number;
+  };
+  lastCelebratedLevelId?: RankLevelId;
 };
 
 export type DailyChecks = {
@@ -139,6 +204,7 @@ export type ProgressEntry = {
 };
 
 export type AppData = {
+  schemaVersion: 5;
   profile: Profile;
   goals: Goals;
   meals: Meal[];
@@ -146,6 +212,9 @@ export type AppData = {
   workouts: Workout[];
   weekPlan: WeekPlanItem[];
   dailyChecks: Record<string, DailyChecks>;
-  exerciseLogs: Record<string, ExerciseLog>;
+  exerciseLogs: Record<string, LegacyExerciseLog>;
+  workoutSessions: Record<string, WorkoutSession>;
+  activeWorkoutSessionId: string | null;
+  rank: RankState;
   progressEntries: ProgressEntry[];
 };

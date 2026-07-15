@@ -255,10 +255,10 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
           <RotateCcw size={18} aria-hidden="true" />
           Reiniciar
         </button>
-        <button className="primary-button" type="button">
+        <div className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-lime-300/20 bg-lime-300/[0.08] px-3 text-sm font-extrabold text-lime-100" aria-live="polite">
           <Save size={18} aria-hidden="true" />
-          Salvo local
-        </button>
+          Salvamento automático
+        </div>
       </div>
     </div>
   );

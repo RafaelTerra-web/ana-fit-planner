@@ -1,11 +1,11 @@
 {
   "name": "Ana Fit Planner",
   "short_name": "Ana Fit",
-  "description": "Painel simples para dieta, treino, cardio e progresso.",
+  "description": "Treino por séries, hábitos, dieta, progresso e ranks do Ferro ao Olympia.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#020617",
-  "theme_color": "#020617",
+  "background_color": "#050811",
+  "theme_color": "#050811",
   "orientation": "portrait",
   "icons": [
     {

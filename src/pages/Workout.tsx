@@ -1,11 +1,30 @@
-import { AlertTriangle, BarChart3, CalendarDays, ChevronDown, ChevronUp, HeartPulse, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  BarChart3,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  HeartPulse,
+  Pencil,
+  Play,
+  Plus,
+  Settings2,
+  Trash2,
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/Card';
 import { ExerciseCard } from '../components/ExerciseCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { getWorkoutById } from '../data/workoutPlan';
 import type { AppData, DailyChecks, Exercise, ExerciseLog, ExerciseTarget, MuscleGroup, WeekPlanItem, Workout as WorkoutModel } from '../types';
 import { calculateAdherence, getWeekCheckEntries } from '../utils/calculations';
+import {
+  createWorkoutSession,
+  findPreviousExerciseLog,
+  getWorkoutSessionId,
+  getWorkoutSessionProgress,
+} from '../utils/workoutSessions';
 import {
   calculateWeeklyVolume,
   formatSetLabel,
@@ -18,9 +37,17 @@ import {
 
 type WorkoutProps = {
   data: AppData;
+  dateKey: string;
   todayChecks: DailyChecks;
   todayPlan: WeekPlanItem;
-  onExerciseLogChange: (exerciseId: string, log: ExerciseLog) => void;
+  onExerciseLogChange: (
+    sessionId: string | undefined,
+    workoutId: string,
+    exerciseId: string,
+    log: ExerciseLog
+  ) => void;
+  onFinishSession: (sessionId: string) => void;
+  onStartSession: (workoutId: string) => void;
   onToggleCheck: (key: keyof Omit<DailyChecks, 'meals'>) => void;
   onWeekPlanChange: (weekPlan: WeekPlanItem[]) => void;
   onWorkoutsChange: (workouts: WorkoutModel[]) => void;
@@ -484,124 +511,283 @@ function WorkoutEditor({
 
 export function Workout({
   data,
+  dateKey,
   todayChecks,
   todayPlan,
   onExerciseLogChange,
+  onFinishSession,
+  onStartSession,
   onToggleCheck,
   onWeekPlanChange,
   onWorkoutsChange,
 }: WorkoutProps) {
-  const [selectedWorkoutId, setSelectedWorkoutId] = useState(todayPlan.workoutId ?? data.workouts[0].id);
+  const activeSession = data.activeWorkoutSessionId
+    ? data.workoutSessions[data.activeWorkoutSessionId]
+    : undefined;
+  const activeWorkoutExists = Boolean(
+    activeSession && data.workouts.some((workout) => workout.id === activeSession.workoutId)
+  );
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState(
+    activeWorkoutExists && activeSession ? activeSession.workoutId : todayPlan.workoutId ?? data.workouts[0].id
+  );
+  const [viewedSessionId, setViewedSessionId] = useState<string | undefined>(
+    activeWorkoutExists ? activeSession?.id : undefined
+  );
   const [isEditing, setIsEditing] = useState(false);
   const selectedWorkout = getWorkoutById(selectedWorkoutId, data.workouts) ?? data.workouts[0];
+  const currentDateSessionId = getWorkoutSessionId(selectedWorkout.id, dateKey);
+  const viewedSession = viewedSessionId ? data.workoutSessions[viewedSessionId] : undefined;
+  const matchingViewedSession = viewedSession?.workoutId === selectedWorkout.id ? viewedSession : undefined;
+  const matchingActiveSession =
+    activeSession?.workoutId === selectedWorkout.id && !activeSession.completedAt ? activeSession : undefined;
+  const session =
+    matchingViewedSession ?? matchingActiveSession ?? data.workoutSessions[currentDateSessionId];
+  const displaySession =
+    session ??
+    createWorkoutSession(selectedWorkout, {
+      dateKey,
+      legacyExerciseLogs: data.exerciseLogs,
+    });
+  const sessionExercises: Exercise[] = session?.completedAt
+    ? session.exerciseOrder.flatMap((exerciseId) => {
+        const log = session.exerciseLogs[exerciseId];
+        if (!log) {
+          return [];
+        }
+
+        const currentExercise = selectedWorkout.exercises.find((exercise) => exercise.id === exerciseId);
+        return [
+          {
+            id: exerciseId,
+            name: log.exerciseName,
+            sets: log.plannedSetCount,
+            reps: log.targetReps,
+            rest: currentExercise?.rest ?? '',
+            rir: log.targetRir,
+            note: currentExercise?.note,
+            targets: currentExercise?.targets ?? [],
+            unilateral: currentExercise?.unilateral,
+            progressionType: currentExercise?.progressionType ?? ('large' as const),
+          },
+        ];
+      })
+    : selectedWorkout.exercises;
+  const sessionProgress = getWorkoutSessionProgress(displaySession);
+  const firstIncompleteExerciseIndex = sessionExercises.findIndex((exercise) => {
+    const log = displaySession.exerciseLogs[exercise.id];
+    return Boolean(log?.sets.slice(0, log.plannedSetCount).some((set) => !set.completed));
+  });
   const weeklyChecks = useMemo(() => getWeekCheckEntries(data.dailyChecks), [data.dailyChecks]);
   const trainingAdherence = calculateAdherence(weeklyChecks, 'trainingDone', data.profile.trainingDays);
   const cardioAdherence = calculateAdherence(weeklyChecks, 'cardioDone', data.profile.cardioDays);
   const weeklyVolume = useMemo(() => calculateWeeklyVolume(data.workouts, data.weekPlan), [data.weekPlan, data.workouts]);
+  const isTodayWorkout = selectedWorkout.id === todayPlan.workoutId;
+
+  useEffect(() => {
+    if (!activeSession || !data.workouts.some((workout) => workout.id === activeSession.workoutId)) {
+      return;
+    }
+
+    setSelectedWorkoutId(activeSession.workoutId);
+    setViewedSessionId(activeSession.id);
+  }, [activeSession, data.workouts]);
+
+  const selectWorkout = (workoutId: string) => {
+    setSelectedWorkoutId(workoutId);
+    setViewedSessionId(undefined);
+  };
+
+  const scrollToExercises = () => {
+    window.requestAnimationFrame(() => {
+      document.getElementById('exercise-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const handleStartOrContinue = () => {
+    if (!session) {
+      onStartSession(selectedWorkout.id);
+    }
+    scrollToExercises();
+  };
 
   return (
-    <div className="space-y-5">
-      <header className="pt-2">
-        <p className="text-sm font-semibold text-rose-700">Bom treino, {data.profile.name}</p>
-        <h1 className="page-title mt-1">Treino</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">Rotina editavel com alertas de volume para cutting.</p>
+    <div className="space-y-4">
+      <header className="pt-1">
+        <p className="eyebrow">Modo treino</p>
+        <h1 className="page-title mt-1">Vamos treinar, {data.profile.name}</h1>
+        <p className="mt-2 text-sm leading-relaxed text-slate-400">Registre uma série por vez. O descanso começa quando você conclui cada linha.</p>
       </header>
 
-      <div className="grid gap-3">
-        <Card>
-          <div className="flex items-center gap-2">
-            <CalendarDays className="text-rose-700" size={20} aria-hidden="true" />
-            <h2 className="section-title">Semana</h2>
-          </div>
-          <div className="mt-4 grid gap-2">
-            {data.weekPlan.map((item) => (
-              <button
-                type="button"
-                className={`rounded-lg border p-3 text-left transition ${
-                  selectedWorkout?.id === item.workoutId
-                    ? 'border-rose-300 bg-rose-50 text-rose-900'
-                    : 'border-slate-200 bg-slate-50 text-slate-700'
-                }`}
-                key={item.dayLabel}
-                onClick={() => item.workoutId && setSelectedWorkoutId(item.workoutId)}
-              >
-                <span className="text-xs font-bold uppercase tracking-wide text-slate-500">{item.dayLabel}</span>
-                <span className="mt-1 block text-sm font-bold">{item.title}</span>
-                {item.cardio ? <span className="mt-1 block text-xs font-semibold text-teal-700">{item.cardio}</span> : null}
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <h2 className="section-title">Aderencia semanal</h2>
-          <div className="mt-4 space-y-4">
-            <ProgressBar value={trainingAdherence} label="Treinos" tone="rose" />
-            <ProgressBar value={cardioAdherence} label="Cardios" tone="teal" />
-          </div>
-        </Card>
+      <div className="-mx-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" aria-label="Escolher treino da semana">
+        <div className="flex min-w-max gap-2">
+          {data.weekPlan
+            .filter((item) => item.workoutId)
+            .map((item) => {
+              const isSelected = selectedWorkout.id === item.workoutId;
+              return (
+                <button
+                  className={`min-h-12 rounded-2xl border px-3.5 py-2 text-left transition ${
+                    isSelected
+                      ? 'border-lime-300/30 bg-lime-300/10 text-lime-100'
+                      : 'border-white/10 bg-white/[0.035] text-slate-400'
+                  }`}
+                  key={`${item.dayIndex}-${item.workoutId}`}
+                  type="button"
+                  onClick={() => item.workoutId && selectWorkout(item.workoutId)}
+                  aria-pressed={isSelected}
+                >
+                  <span className="block text-[0.64rem] font-black uppercase tracking-wider">{item.dayLabel}</span>
+                  <span className="mt-0.5 block max-w-32 truncate text-xs font-bold">{getWorkoutById(item.workoutId, data.workouts)?.shortTitle}</span>
+                </button>
+              );
+            })}
+        </div>
       </div>
 
-      <VolumePanel volume={weeklyVolume} />
-
-      <Card>
+      <Card className="session-hero overflow-hidden border-lime-300/15 bg-gradient-to-br from-lime-300/[0.08] via-slate-900 to-slate-950">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="section-title">Hoje</h2>
-            <p className="mt-1 text-sm leading-relaxed text-slate-600">{todayPlan.title}</p>
+          <div className="min-w-0">
+            <p className="eyebrow">{isTodayWorkout ? 'Treino de hoje' : selectedWorkout.dayLabel || 'Treino selecionado'}</p>
+            <h2 className="mt-2 text-xl font-black leading-tight text-slate-50">{selectedWorkout.title}</h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-400">{selectedWorkout.focus}</p>
           </div>
-          {todayPlan.cardio ? <HeartPulse className="text-teal-700" size={22} aria-hidden="true" /> : null}
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-lime-300 text-slate-950">
+            {session?.completedAt ? <CheckCircle2 size={22} aria-hidden="true" /> : <CalendarDays size={21} aria-hidden="true" />}
+          </span>
         </div>
-        <div className="mt-4 grid gap-2">
-          {todayPlan.workoutId ? (
+
+        <div className="mt-5">
+          <div className="flex items-center justify-between gap-3 text-xs font-bold">
+            <span className="text-slate-300">{sessionProgress.completedSetCount} de {sessionProgress.plannedSetCount} séries</span>
+            <span className="tabular-nums text-lime-200">{sessionProgress.percentage}%</span>
+          </div>
+          <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-950/70" role="progressbar" aria-label="Progresso da sessão" aria-valuemin={0} aria-valuemax={100} aria-valuenow={sessionProgress.percentage}>
+            <div className="h-full rounded-full bg-gradient-to-r from-lime-400 to-emerald-300" style={{ width: `${sessionProgress.percentage}%` }} />
+          </div>
+        </div>
+
+        {session?.completedAt ? (
+          <div
+            className={`mt-4 flex items-center gap-2 rounded-2xl border px-3 py-3 text-sm font-extrabold ${
+              sessionProgress.percentage >= 60
+                ? 'border-lime-300/20 bg-lime-300/[0.08] text-lime-100'
+                : 'border-amber-300/20 bg-amber-300/[0.08] text-amber-100'
+            }`}
+          >
+            {sessionProgress.percentage >= 60 ? (
+              <>
+                <CheckCircle2 size={18} aria-hidden="true" /> Sessão finalizada e XP registrado
+              </>
+            ) : (
+              <>
+                <AlertTriangle size={18} aria-hidden="true" /> Sessão encerrada sem XP (mínimo de 60%)
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <button
               type="button"
-              className={todayChecks.trainingDone ? 'primary-button bg-teal-700' : 'secondary-button'}
-              onClick={() => onToggleCheck('trainingDone')}
+              className="primary-button w-full"
+              onClick={handleStartOrContinue}
             >
-              {todayChecks.trainingDone ? 'Treino concluido' : 'Marcar treino de hoje'}
+              <Play size={18} fill="currentColor" aria-hidden="true" />
+              {session ? 'Continuar treino' : 'Começar treino'}
             </button>
-          ) : null}
-          {todayPlan.cardio ? (
             <button
               type="button"
-              className={todayChecks.cardioDone ? 'primary-button bg-teal-700' : 'secondary-button'}
-              onClick={() => onToggleCheck('cardioDone')}
+              className="secondary-button w-full"
+              disabled={!session || sessionProgress.completedSetCount === 0}
+              onClick={() => session && onFinishSession(session.id)}
             >
-              {todayChecks.cardioDone ? 'Cardio concluido' : 'Marcar cardio de hoje'}
+              <CheckCircle2 size={18} aria-hidden="true" /> Finalizar sessão
             </button>
-          ) : null}
-        </div>
+          </div>
+        )}
+
+        {todayPlan.cardio && (!todayPlan.workoutId || isTodayWorkout) ? (
+          <button
+            type="button"
+            className={`mt-3 flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left text-sm font-bold ${
+              todayChecks.cardioDone
+                ? 'border-teal-300/20 bg-teal-300/10 text-teal-100'
+                : 'border-white/10 bg-white/[0.035] text-slate-300'
+            }`}
+            onClick={() => onToggleCheck('cardioDone')}
+          >
+            <span className="flex items-center gap-2"><HeartPulse size={18} aria-hidden="true" /> {todayPlan.cardio}</span>
+            <span>{todayChecks.cardioDone ? 'Feito' : '+35 XP'}</span>
+          </button>
+        ) : null}
       </Card>
 
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="section-title">{selectedWorkout.title}</h2>
-          <p className="mt-1 text-sm text-slate-600">{selectedWorkout.focus}</p>
+      <section className="scroll-mt-4 space-y-3" id="exercise-list" aria-labelledby="exercise-list-title">
+        <div className="flex items-end justify-between gap-3 px-1">
+          <div>
+            <p className="eyebrow">Execução</p>
+            <h2 className="section-title mt-1" id="exercise-list-title">Séries do treino</h2>
+          </div>
+          <span className="text-xs font-bold text-slate-500">{sessionExercises.length} exercícios</span>
         </div>
-        <button className="secondary-button shrink-0 px-3" type="button" onClick={() => setIsEditing((current) => !current)}>
-          <Pencil size={18} aria-hidden="true" />
-          {isEditing ? 'Fechar' : 'Editar'}
-        </button>
-      </div>
-
-      {isEditing ? (
-        <WorkoutEditor
-          selectedWorkout={selectedWorkout}
-          selectedWorkoutId={selectedWorkout.id}
-          weekPlan={data.weekPlan}
-          workouts={data.workouts}
-          onSelectWorkout={setSelectedWorkoutId}
-          onWeekPlanChange={onWeekPlanChange}
-          onWorkoutsChange={onWorkoutsChange}
-        />
-      ) : null}
-
-      <section className="space-y-3">
-        {selectedWorkout.exercises.map((exercise) => (
-          <ExerciseCard exercise={exercise} key={exercise.id} log={data.exerciseLogs[exercise.id]} onChange={onExerciseLogChange} />
-        ))}
+        {sessionExercises.map((exercise, index) => {
+          const log = displaySession.exerciseLogs[exercise.id];
+          const previousLog = findPreviousExerciseLog(data.workoutSessions, displaySession, exercise.id);
+          return (
+            <ExerciseCard
+              exercise={exercise}
+              key={exercise.id}
+              log={log}
+              previousLog={previousLog}
+              readOnly={Boolean(session?.completedAt)}
+              defaultExpanded={index === (firstIncompleteExerciseIndex < 0 ? 0 : firstIncompleteExerciseIndex)}
+              onChange={(exerciseId, nextLog) =>
+                onExerciseLogChange(session?.id, selectedWorkout.id, exerciseId, nextLog)
+              }
+            />
+          );
+        })}
       </section>
+
+      <details className="manage-plan overflow-hidden rounded-[1.35rem] border border-white/10 bg-slate-900/65">
+        <summary className="flex cursor-pointer list-none items-center gap-3 p-4 font-extrabold text-slate-100">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.05] text-slate-300">
+            <Settings2 size={19} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block">Gerenciar plano</span>
+            <span className="mt-0.5 block text-xs font-semibold text-slate-500">Split, exercícios e volume semanal</span>
+          </span>
+          <ChevronDown className="manage-chevron text-slate-500 transition" size={19} aria-hidden="true" />
+        </summary>
+
+        <div className="space-y-3 border-t border-white/10 p-3">
+          <Card>
+            <h2 className="section-title">Aderência semanal</h2>
+            <div className="mt-4 space-y-4">
+              <ProgressBar value={trainingAdherence} label="Treinos" tone="rose" />
+              <ProgressBar value={cardioAdherence} label="Cardios" tone="teal" />
+            </div>
+          </Card>
+
+          <VolumePanel volume={weeklyVolume} />
+
+          <button className="secondary-button w-full" type="button" onClick={() => setIsEditing((current) => !current)}>
+            <Pencil size={18} aria-hidden="true" /> {isEditing ? 'Fechar editor' : 'Editar rotina'}
+          </button>
+
+          {isEditing ? (
+            <WorkoutEditor
+              selectedWorkout={selectedWorkout}
+              selectedWorkoutId={selectedWorkout.id}
+              weekPlan={data.weekPlan}
+              workouts={data.workouts}
+              onSelectWorkout={selectWorkout}
+              onWeekPlanChange={onWeekPlanChange}
+              onWorkoutsChange={onWorkoutsChange}
+            />
+          ) : null}
+        </div>
+      </details>
     </div>
   );
 }

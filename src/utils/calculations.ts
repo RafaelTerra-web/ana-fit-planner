@@ -97,7 +97,9 @@ export function getWeekCheckEntries(dailyChecks: Record<string, DailyChecks>, da
   return Array.from({ length: 7 }, (_, index) => {
     const itemDate = new Date(start);
     itemDate.setDate(start.getDate() + index);
-    const key = itemDate.toISOString().slice(0, 10);
+    const month = String(itemDate.getMonth() + 1).padStart(2, '0');
+    const day = String(itemDate.getDate()).padStart(2, '0');
+    const key = `${itemDate.getFullYear()}-${month}-${day}`;
     return dailyChecks[key];
   }).filter(Boolean);
 }

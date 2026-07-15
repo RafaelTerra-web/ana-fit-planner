@@ -1,9 +1,54 @@
-const CACHE_NAME = 'ana-fit-planner-v3';
-const APP_SHELL = ['/index.html', '/manifest.webmanifest', '/favicon.svg', '/pwa-icon.svg'];
+const CACHE_NAME = 'ana-fit-planner-v5';
+const APP_SHELL = [
+  '/manifest.webmanifest',
+  '/favicon.svg',
+  '/pwa-icon.svg',
+  ...['ferro', 'bronze', 'prata', 'ouro', 'platina', 'diamante', 'elite', 'olympia'].flatMap((rank) =>
+    [3, 2, 1].map((division) => `/ranks/${rank}-${division}.png`)
+  ),
+];
+
+function getViteAssetUrls(html) {
+  const assetUrls = new Set();
+  const attributePattern = /(?:src|href)=["']([^"']+)["']/g;
+  let match = attributePattern.exec(html);
+
+  while (match) {
+    const url = new URL(match[1], self.location.origin);
+    if (url.origin === self.location.origin && url.pathname.startsWith('/assets/')) {
+      assetUrls.add(`${url.pathname}${url.search}`);
+    }
+    match = attributePattern.exec(html);
+  }
+
+  return [...assetUrls];
+}
+
+async function fetchAndCache(cache, url) {
+  const response = await fetch(url, { cache: 'reload' });
+  if (!response.ok) {
+    throw new Error(`Nao foi possivel armazenar ${url}: ${response.status}`);
+  }
+
+  await cache.put(url, response);
+}
+
+async function precacheApp() {
+  const cache = await caches.open(CACHE_NAME);
+  const indexResponse = await fetch('/index.html', { cache: 'reload' });
+  if (!indexResponse.ok) {
+    throw new Error(`Nao foi possivel carregar o app: ${indexResponse.status}`);
+  }
+
+  const html = await indexResponse.clone().text();
+  const viteAssetUrls = getViteAssetUrls(html);
+
+  await cache.put('/index.html', indexResponse);
+  await Promise.all([...APP_SHELL, ...viteAssetUrls].map((url) => fetchAndCache(cache, url)));
+}
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
-  self.skipWaiting();
+  event.waitUntil(precacheApp().then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
@@ -11,8 +56,8 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -23,9 +68,15 @@ self.addEventListener('fetch', (event) => {
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
-        .then((response) => {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', responseClone));
+        .then(async (response) => {
+          if (response.ok) {
+            try {
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put('/index.html', response.clone());
+            } catch {
+              // A falha do cache nao deve descartar uma resposta de rede valida.
+            }
+          }
           return response;
         })
         .catch(() => caches.match('/index.html'))
@@ -37,10 +88,14 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request).then(
       (cached) =>
         cached ??
-        fetch(event.request).then((response) => {
+        fetch(event.request).then(async (response) => {
           if (response.ok) {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+            try {
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put(event.request, response.clone());
+            } catch {
+              // Mantem o recurso utilizavel online mesmo se o cache estiver cheio.
+            }
           }
 
           return response;

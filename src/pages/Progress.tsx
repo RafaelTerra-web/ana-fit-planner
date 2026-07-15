@@ -1,9 +1,11 @@
-import { Activity, Camera, Plus, TrendingUp } from 'lucide-react';
+import { Activity, Camera, ChevronDown, Plus, TrendingUp, Trophy } from 'lucide-react';
 import { FormEvent, useMemo, useState } from 'react';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
+import { RankCard } from '../components/RankCard';
+import { RankJourney } from '../components/RankJourney';
 import type { AppData, ProgressEntry } from '../types';
-import { suggestCalorieAdjustment } from '../utils/calculations';
+import { calculateAdherence, getWeekCheckEntries, suggestCalorieAdjustment } from '../utils/calculations';
 
 type ProgressProps = {
   data: AppData;
@@ -74,6 +76,9 @@ function MiniChart({ label, unit, entries, getValue, color }: ChartProps) {
 }
 
 export function Progress({ data, onAddProgress }: ProgressProps) {
+  const weeklyChecks = useMemo(() => getWeekCheckEntries(data.dailyChecks), [data.dailyChecks]);
+  const completedTrainingDays = weeklyChecks.filter((checks) => checks.trainingDone).length;
+  const completedCardioDays = weeklyChecks.filter((checks) => checks.cardioDone).length;
   const [form, setForm] = useState({
     date: todayKey(),
     weightKg: String(data.profile.weightKg),
@@ -82,15 +87,15 @@ export function Progress({ data, onAddProgress }: ProgressProps) {
     hipThrustKg: '',
     bulgarianKg: '',
     rdlKg: '',
-    trainingFrequency: String(data.profile.trainingDays),
-    cardioFrequency: String(data.profile.cardioDays),
+    trainingFrequency: String(completedTrainingDays),
+    cardioFrequency: String(completedCardioDays),
     photoDataUrl: '',
   });
 
   const latestEntry = data.progressEntries[data.progressEntries.length - 1];
   const adjustment = useMemo(() => suggestCalorieAdjustment(data.progressEntries, data.goals), [data.progressEntries, data.goals]);
-  const trainingAdherence = latestEntry ? Math.round((latestEntry.trainingFrequency / data.profile.trainingDays) * 100) : 0;
-  const cardioAdherence = latestEntry ? Math.round((latestEntry.cardioFrequency / data.profile.cardioDays) * 100) : 0;
+  const trainingAdherence = calculateAdherence(weeklyChecks, 'trainingDone', data.profile.trainingDays);
+  const cardioAdherence = calculateAdherence(weeklyChecks, 'cardioDone', data.profile.cardioDays);
 
   const updateForm = (field: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -127,10 +132,28 @@ export function Progress({ data, onAddProgress }: ProgressProps) {
   return (
     <div className="space-y-5">
       <header className="pt-2">
-        <p className="text-sm font-semibold text-rose-700">Medidas, cargas e constancia</p>
+        <p className="eyebrow">Sua evolução</p>
         <h1 className="page-title mt-1">Progresso</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">Acompanhe média de peso, cintura, quadril e cargas principais.</p>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">Consistência primeiro. Medidas e cargas ajudam a enxergar a tendência.</p>
       </header>
+
+      <RankCard rank={data.rank} variant="hero" />
+
+      <details className="rank-details overflow-hidden rounded-[1.35rem] border border-white/10 bg-slate-900/65">
+        <summary className="flex cursor-pointer list-none items-center gap-3 p-4 font-extrabold text-slate-100">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-300/10 text-amber-200">
+            <Trophy size={19} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block">Ver os 24 ranks</span>
+            <span className="mt-0.5 block text-xs font-semibold text-slate-500">Ferro III até Olympia I</span>
+          </span>
+          <ChevronDown className="manage-chevron text-slate-500 transition" size={19} aria-hidden="true" />
+        </summary>
+        <div className="border-t border-white/10 p-4">
+          <RankJourney rank={data.rank} />
+        </div>
+      </details>
 
       <div className="grid grid-cols-2 gap-3">
         <Card className="p-3">

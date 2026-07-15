@@ -7,7 +7,7 @@ type BottomNavProps = {
 };
 
 const items: Array<{ id: AppTab; label: string; icon: typeof Home }> = [
-  { id: 'today', label: 'Inicio', icon: Home },
+  { id: 'today', label: 'Início', icon: Home },
   { id: 'workout', label: 'Treino', icon: Dumbbell },
   { id: 'diet', label: 'Dieta', icon: Utensils },
   { id: 'progress', label: 'Progresso', icon: Activity },
@@ -16,16 +16,18 @@ const items: Array<{ id: AppTab; label: string; icon: typeof Home }> = [
 
 export function BottomNav({ activeTab, onChange }: BottomNavProps) {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-slate-950/92 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 backdrop-blur">
-      <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+    <nav className="bottom-nav fixed inset-x-3 z-30" aria-label="Navegação principal">
+      <div className="bottom-nav-shell mx-auto grid max-w-md grid-cols-5 gap-1 p-1.5">
         {items.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
 
           return (
             <button
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[0.72rem] font-semibold transition ${
-                isActive ? 'bg-white/10 text-teal-200' : 'text-slate-500 hover:bg-white/5 hover:text-slate-200'
+              className={`bottom-nav-item relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[1rem] px-1 text-[0.7rem] font-bold leading-none transition ${
+                isActive
+                  ? 'bg-lime-300/10 text-lime-200 shadow-[inset_0_0_0_1px_rgba(190,242,100,0.08)]'
+                  : 'text-slate-500 hover:bg-white/5 hover:text-slate-200'
               }`}
               type="button"
               data-testid={`nav-${item.id}`}
@@ -33,8 +35,21 @@ export function BottomNav({ activeTab, onChange }: BottomNavProps) {
               onClick={() => onChange(item.id)}
               aria-current={isActive ? 'page' : undefined}
             >
-              <Icon size={20} aria-hidden="true" />
-              <span>{item.label}</span>
+              <span
+                className={`absolute top-1 h-0.5 w-5 rounded-full bg-lime-300 transition-opacity ${
+                  isActive ? 'opacity-100' : 'opacity-0'
+                }`}
+                aria-hidden="true"
+              />
+              <span
+                className={`grid h-8 w-8 place-items-center rounded-xl transition ${
+                  isActive ? 'bg-lime-300 text-slate-950 shadow-[0_6px_18px_rgba(190,242,100,0.24)]' : ''
+                }`}
+                aria-hidden="true"
+              >
+                <Icon size={19} strokeWidth={isActive ? 2.35 : 2} />
+              </span>
+              <span className="max-w-full truncate px-0.5">{item.label}</span>
             </button>
           );
         })}

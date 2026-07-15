@@ -11,30 +11,39 @@ function maxRepFromRange(range: string) {
 }
 
 export function getExerciseFeedback(exercise: Exercise, log?: ExerciseLog) {
-  if (!log?.done) {
-    return 'Execução primeiro, carga depois.';
+  const completedSets = log?.sets.filter((set) => set.completed) ?? [];
+  if (!completedSets.length) {
+    return 'Comece pela execução. A sugestão se adapta quando você conclui as séries.';
   }
 
   const maxRep = maxRepFromRange(exercise.reps);
-  const reportedReps = Number(log.reps);
-  const rir = Number(log.rir);
-  const hasProgressData = log.reps.trim() !== '' && log.rir.trim() !== '';
+  const hasProgressData = completedSets.every((set) => set.reps.trim() !== '' && set.rir.trim() !== '');
+  const completedPlannedSets = Math.min(completedSets.length, log?.plannedSetCount ?? exercise.sets);
+  const missingSets = Math.max(0, (log?.plannedSetCount ?? exercise.sets) - completedPlannedSets);
 
   if (!hasProgressData) {
-    return 'Exercício marcado. Preencha repetições e RIR para gerar uma sugestão de carga.';
+    return 'Preencha repetições e RIR das séries concluídas para receber uma sugestão de progressão.';
   }
 
-  if (maxRep && reportedReps >= maxRep && rir >= 1 && rir <= 2) {
+  if (missingSets > 0) {
+    return `${missingSets} ${missingSets === 1 ? 'série planejada falta' : 'séries planejadas faltam'}. Mantenha a técnica antes de pensar em subir a carga.`;
+  }
+
+  const allSetsHitTop = maxRep ? completedSets.every((set) => Number(set.reps) >= maxRep) : false;
+  const allSetsControlled = completedSets.every((set) => Number(set.rir) >= 1 && Number(set.rir) <= 2);
+  const reachedFailure = completedSets.some((set) => Number(set.rir) === 0 && Number(set.reps) > 0);
+
+  if (allSetsHitTop && allSetsControlled) {
     return exercise.progressionType === 'large'
-      ? 'Boa. Dá para tentar subir +2 a 5 kg na próxima.'
-      : 'Boa. Dá para tentar subir 1 placa ou o menor incremento.';
+      ? 'Faixa alta em todas as séries. Na próxima sessão, teste +2 a 5 kg mantendo a execução.'
+      : 'Faixa alta em todas as séries. Na próxima, teste o menor incremento disponível.';
   }
 
-  if (rir === 0 && reportedReps > 0) {
-    return 'Você chegou perto da falha. Mantenha a carga até controlar melhor a execução.';
+  if (reachedFailure) {
+    return 'Houve série no limite. Mantenha a carga até repetir o desempenho com 1–2 repetições na reserva.';
   }
 
-  return 'Mantenha a carga até bater todas as séries com boa execução.';
+  return 'Boa sessão. Repita a carga até atingir o topo da faixa em todas as séries com controle.';
 }
 
 export function getDietSuggestions(meals: Meal[], goals: Goals, progressEntries: ProgressEntry[]) {

@@ -1,53 +1,190 @@
-import { ArrowRight, Dumbbell, Utensils } from 'lucide-react';
-import type { AppData, AppTab } from '../types';
+import { Activity, ArrowRight, Check, Droplets, Dumbbell, Footprints, HeartPulse, Utensils } from 'lucide-react';
+import { Card } from '../components/Card';
+import { RankCard } from '../components/RankCard';
+import { getWorkoutById } from '../data/workoutPlan';
+import type { AppData, AppTab, DailyChecks, WeekPlanItem } from '../types';
+import { getWorkoutSessionId, getWorkoutSessionProgress } from '../utils/workoutSessions';
 
 type TodayProps = {
   data: AppData;
+  dateKey: string;
+  todayChecks: DailyChecks;
+  todayPlan: WeekPlanItem;
   onSelectTab: (tab: AppTab) => void;
+  onStartWorkout: (workoutId: string) => void;
+  onToggleCheck: (key: keyof Omit<DailyChecks, 'meals'>) => void;
 };
 
-export function Today({ data, onSelectTab }: TodayProps) {
+function getGreeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return 'Bom dia';
+  if (hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+function CheckAction({
+  checked,
+  icon: Icon,
+  label,
+  helper,
+  onClick,
+}: {
+  checked: boolean;
+  icon: typeof Droplets;
+  label: string;
+  helper: string;
+  onClick: () => void;
+}) {
   return (
-    <div className="flex min-h-[calc(100vh-2rem)] flex-col justify-center py-8">
-      <header className="mb-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-teal-300">Ana Fit Planner</p>
-        <h1 className="mt-3 text-3xl font-black leading-tight text-slate-50">Escolha por onde começar</h1>
-        <p className="mt-3 max-w-xs text-sm leading-relaxed text-slate-400">
-          Um acesso simples para {data.profile.name}: treino ou dieta, sem painel de numeros na entrada.
-        </p>
+    <button
+      className={`rounded-[1.15rem] border p-3 text-left transition ${
+        checked ? 'border-lime-300/25 bg-lime-300/[0.08]' : 'border-white/10 bg-white/[0.035]'
+      }`}
+      type="button"
+      onClick={onClick}
+      aria-pressed={checked}
+    >
+      <span className="flex items-start justify-between gap-2">
+        <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${checked ? 'bg-lime-300 text-slate-950' : 'bg-white/[0.05] text-slate-300'}`}>
+          {checked ? <Check size={18} aria-hidden="true" /> : <Icon size={18} aria-hidden="true" />}
+        </span>
+        <span className={`mt-1 h-2 w-2 rounded-full ${checked ? 'bg-lime-300' : 'bg-slate-700'}`} aria-hidden="true" />
+      </span>
+      <span className="mt-3 block text-sm font-extrabold text-slate-100">{label}</span>
+      <span className="mt-1 block text-xs font-semibold text-slate-500">{checked ? 'Concluído hoje' : helper}</span>
+    </button>
+  );
+}
+
+export function Today({ data, dateKey, todayChecks, todayPlan, onSelectTab, onStartWorkout, onToggleCheck }: TodayProps) {
+  const now = new Date();
+  const todayWorkout = getWorkoutById(todayPlan.workoutId, data.workouts);
+  const session = todayWorkout ? data.workoutSessions[getWorkoutSessionId(todayWorkout.id, dateKey)] : undefined;
+  const sessionProgress = session ? getWorkoutSessionProgress(session) : null;
+  const mealsCompleted = data.meals.filter((meal) => todayChecks.meals[meal.id]).length;
+  const nextMeal = data.meals.find((meal) => !todayChecks.meals[meal.id]);
+  const dateLabel = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(now);
+
+  return (
+    <div className="space-y-4">
+      <header className="flex items-start justify-between gap-4 pt-1">
+        <div>
+          <p className="eyebrow">{dateLabel}</p>
+          <h1 className="page-title mt-2">{getGreeting()}, {data.profile.name}</h1>
+          <p className="mt-2 text-sm text-slate-400">Seu plano de hoje, sem distração.</p>
+        </div>
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-lime-300/15 bg-lime-300/[0.08] text-lime-200" aria-hidden="true">
+          <Activity size={21} />
+        </span>
       </header>
 
-      <section className="grid gap-4" aria-label="Escolha inicial">
-        <button
-          type="button"
-          data-testid="go-workout"
-          className="group min-h-44 rounded-lg border border-rose-400/30 bg-gradient-to-br from-rose-500/20 via-slate-900 to-slate-950 p-5 text-left shadow-soft transition active:scale-[0.98]"
-          onClick={() => onSelectTab('workout')}
-        >
-          <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-rose-400 text-[#020617]">
-            <Dumbbell size={25} aria-hidden="true" />
-          </span>
-          <span className="mt-7 block text-2xl font-black text-white">Treino</span>
-          <span className="mt-2 flex items-center gap-2 text-sm font-bold text-rose-100">
-            Abrir rotina <ArrowRight className="transition group-active:translate-x-1" size={17} aria-hidden="true" />
-          </span>
-        </button>
+      <RankCard rank={data.rank} onClick={() => onSelectTab('progress')} />
+
+      <Card className="overflow-hidden border-rose-300/15 bg-gradient-to-br from-rose-400/[0.11] via-slate-900 to-slate-950 p-0">
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="eyebrow">{todayWorkout ? 'Treino principal' : 'Plano do dia'}</p>
+              <h2 className="mt-2 text-2xl font-black leading-tight text-white">{todayPlan.title}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                {todayWorkout?.focus ?? todayPlan.cardio ?? todayPlan.rest ?? 'Recupere bem para a próxima sessão.'}
+              </p>
+            </div>
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-300 text-slate-950">
+              {todayWorkout ? <Dumbbell size={23} aria-hidden="true" /> : <HeartPulse size={22} aria-hidden="true" />}
+            </span>
+          </div>
+
+          {sessionProgress ? (
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                <span>{sessionProgress.completedSetCount}/{sessionProgress.plannedSetCount} séries</span>
+                <span>{sessionProgress.percentage}%</span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-950/70" role="progressbar" aria-label="Progresso do treino de hoje" aria-valuemin={0} aria-valuemax={100} aria-valuenow={sessionProgress.percentage}>
+                <div className="h-full rounded-full bg-gradient-to-r from-rose-400 to-amber-300" style={{ width: `${sessionProgress.percentage}%` }} />
+              </div>
+            </div>
+          ) : null}
+        </div>
 
         <button
+          className="flex w-full items-center justify-between border-t border-white/10 bg-white/[0.025] px-5 py-4 text-left font-extrabold text-white"
           type="button"
-          data-testid="go-diet"
-          className="group min-h-44 rounded-lg border border-teal-300/30 bg-gradient-to-br from-teal-400/20 via-slate-900 to-slate-950 p-5 text-left shadow-soft transition active:scale-[0.98]"
+          onClick={() => {
+            if (todayWorkout && !session) {
+              onStartWorkout(todayWorkout.id);
+            }
+            onSelectTab(todayWorkout ? 'workout' : todayPlan.cardio ? 'workout' : 'progress');
+          }}
+        >
+          <span>{session?.completedAt ? 'Rever sessão' : session ? 'Continuar treino' : todayWorkout ? 'Começar treino' : 'Ver atividade'}</span>
+          <ArrowRight size={19} aria-hidden="true" />
+        </button>
+      </Card>
+
+      <section aria-labelledby="daily-actions-title">
+        <div className="flex items-end justify-between gap-3 px-1">
+          <div>
+            <p className="eyebrow">Consistência</p>
+            <h2 className="section-title mt-1" id="daily-actions-title">Metas rápidas</h2>
+          </div>
+          <span className="text-xs font-bold text-slate-500">vale XP uma vez ao dia</span>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2.5">
+          <CheckAction
+            checked={todayChecks.waterDone}
+            icon={Droplets}
+            label="Água"
+            helper={`${data.goals.waterLiters} L · +10 XP`}
+            onClick={() => onToggleCheck('waterDone')}
+          />
+          <CheckAction
+            checked={todayChecks.stepsDone}
+            icon={Footprints}
+            label="Passos"
+            helper="Meta pessoal · +10 XP"
+            onClick={() => onToggleCheck('stepsDone')}
+          />
+          {todayPlan.cardio ? (
+            <CheckAction
+              checked={todayChecks.cardioDone}
+              icon={HeartPulse}
+              label="Cardio"
+              helper="Programado · +35 XP"
+              onClick={() => onToggleCheck('cardioDone')}
+            />
+          ) : null}
+          <button
+            className="rounded-[1.15rem] border border-white/10 bg-white/[0.035] p-3 text-left"
+            type="button"
+            onClick={() => onSelectTab('diet')}
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-300/10 text-teal-200">
+              <Utensils size={18} aria-hidden="true" />
+            </span>
+            <span className="mt-3 block text-sm font-extrabold text-slate-100">Refeições</span>
+            <span className="mt-1 block text-xs font-semibold text-slate-500">{mealsCompleted}/{data.meals.length} concluídas</span>
+          </button>
+        </div>
+      </section>
+
+      {nextMeal ? (
+        <button
+          className="flex w-full items-center gap-3 rounded-[1.35rem] border border-white/10 bg-slate-900/65 p-4 text-left"
+          type="button"
           onClick={() => onSelectTab('diet')}
         >
-          <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-teal-300 text-[#020617]">
-            <Utensils size={25} aria-hidden="true" />
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-300/10 text-teal-200">
+            <Utensils size={19} aria-hidden="true" />
           </span>
-          <span className="mt-7 block text-2xl font-black text-white">Dieta</span>
-          <span className="mt-2 flex items-center gap-2 text-sm font-bold text-teal-100">
-            Abrir plano <ArrowRight className="transition group-active:translate-x-1" size={17} aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <span className="eyebrow">Próxima refeição · {nextMeal.time}</span>
+            <span className="mt-1 block truncate text-sm font-extrabold text-slate-100">{nextMeal.title}</span>
           </span>
+          <ArrowRight className="shrink-0 text-slate-500" size={18} aria-hidden="true" />
         </button>
-      </section>
+      ) : null}
     </div>
   );
 }
