@@ -5,7 +5,8 @@ export type MigrationResult = 'downloaded' | 'uploaded' | 'empty';
 export type ForgetAfterDays = 7 | 30 | 90 | null;
 
 export type AuthContextValue = {
-  user: User;
+  user: User | null;
+  cloudEnabled: boolean;
   migrationResult: MigrationResult;
   forgetAfterDays: ForgetAfterDays;
   setForgetAfterDays: (days: ForgetAfterDays) => void;

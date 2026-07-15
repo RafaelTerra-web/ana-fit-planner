@@ -3,11 +3,14 @@ import { useAuth } from '../auth/authContext';
 import { supabase } from '../lib/supabase';
 import { clearCloudPendingMarker, markCloudDataPending, readCloudPendingMarker } from '../lib/storage';
 
-export type CloudSyncStatus = 'saved' | 'saving' | 'offline' | 'error';
+export type CloudSyncStatus = 'local' | 'saved' | 'saving' | 'offline' | 'error';
 
 export function useCloudSync(data: unknown) {
-  const { user } = useAuth();
-  const [status, setStatus] = useState<CloudSyncStatus>(navigator.onLine ? 'saved' : 'offline');
+  const { user, cloudEnabled } = useAuth();
+  const userId = user?.id;
+  const [status, setStatus] = useState<CloudSyncStatus>(() =>
+    cloudEnabled ? (navigator.onLine ? 'saved' : 'offline') : 'local'
+  );
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const latestDataRef = useRef(data);
   const lastUploadedRef = useRef('');
@@ -17,7 +20,7 @@ export function useCloudSync(data: unknown) {
 
   const upload = useCallback(() => {
     const performUpload = async () => {
-      if (!supabase) return false;
+      if (!supabase || !userId) return false;
       if (!navigator.onLine) {
         setStatus('offline');
         return false;
@@ -26,14 +29,14 @@ export function useCloudSync(data: unknown) {
       const dataToUpload = latestDataRef.current;
       const serialized = JSON.stringify(dataToUpload);
       const currentMarker = readCloudPendingMarker();
-      if (serialized === lastUploadedRef.current && currentMarker?.ownerId !== user.id) {
+      if (serialized === lastUploadedRef.current && currentMarker?.ownerId !== userId) {
         setStatus('saved');
         return true;
       }
 
-      const uploadVersion = currentMarker?.ownerId === user.id ? currentMarker.version : markCloudDataPending(user.id);
+      const uploadVersion = currentMarker?.ownerId === userId ? currentMarker.version : markCloudDataPending(userId);
       setStatus('saving');
-      const { error } = await supabase.from('user_app_data').upsert({ user_id: user.id, data: dataToUpload });
+      const { error } = await supabase.from('user_app_data').upsert({ user_id: userId, data: dataToUpload });
       if (error) {
         setStatus(navigator.onLine ? 'error' : 'offline');
         return false;
@@ -49,7 +52,7 @@ export function useCloudSync(data: unknown) {
     const queuedUpload = uploadQueueRef.current.then(performUpload, performUpload);
     uploadQueueRef.current = queuedUpload;
     return queuedUpload;
-  }, [user.id]);
+  }, [userId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void upload(), 800);

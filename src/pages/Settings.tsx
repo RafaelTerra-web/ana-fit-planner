@@ -30,7 +30,7 @@ const forgetOptions: Array<{ value: ForgetAfterDays; label: string }> = [
 
 export function Settings({ data, onProfileChange, onGoalsChange, onNotificationsChange, onResetData, cloudSync }: SettingsProps) {
   const [notificationMessage, setNotificationMessage] = useState('');
-  const { user, migrationResult, forgetAfterDays, setForgetAfterDays, signOut } = useAuth();
+  const { user, cloudEnabled, migrationResult, forgetAfterDays, setForgetAfterDays, signOut } = useAuth();
   const proteinRange = estimateProtein(data.profile.weightKg);
   const suggestedGoals = calculateDynamicGoals(data.profile);
   const supportMessage = getNotificationSupportMessage();
@@ -91,6 +91,7 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
         <p className="mt-2 text-sm leading-relaxed text-slate-600">Conta protegida com cópia local e sincronização na nuvem.</p>
       </header>
 
+      {cloudEnabled && user ? (
       <Card>
         <div className="flex items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-lime-300/10 text-lime-300">
@@ -139,6 +140,7 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
           Sair da conta agora
         </button>
       </Card>
+      ) : null}
 
       <Card>
         <h2 className="section-title">Perfil</h2>

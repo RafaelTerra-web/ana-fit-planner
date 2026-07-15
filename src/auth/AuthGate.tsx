@@ -64,18 +64,6 @@ function LoadingScreen({ message }: { message: string }) {
   );
 }
 
-function ConfigurationScreen() {
-  return (
-    <AuthShell>
-      <Cloud className="text-lime-300" size={30} aria-hidden="true" />
-      <h1 className="mt-4 text-2xl font-black text-white">Conexão segura pendente</h1>
-      <p className="mt-3 text-sm leading-relaxed text-slate-400">
-        O login já está preparado, mas o projeto Supabase ainda precisa ser conectado pelas variáveis de ambiente.
-      </p>
-    </AuthShell>
-  );
-}
-
 function PasswordField({
   id,
   label,
@@ -401,7 +389,29 @@ export function AuthGate({ children }: PropsWithChildren) {
     };
   }, [stage, user]);
 
-  if (!isSupabaseConfigured) return <ConfigurationScreen />;
+  if (!isSupabaseConfigured) {
+    return (
+      <AuthContext.Provider
+        value={{
+          user: null,
+          cloudEnabled: false,
+          migrationResult: 'empty',
+          forgetAfterDays,
+          setForgetAfterDays: (days) => {
+            setForgetAfterDaysState(days);
+            if (days) {
+              window.localStorage.setItem(FORGET_AFTER_STORAGE_KEY, String(days));
+            } else {
+              window.localStorage.removeItem(FORGET_AFTER_STORAGE_KEY);
+            }
+          },
+          signOut: async () => undefined,
+        }}
+      >
+        {children}
+      </AuthContext.Provider>
+    );
+  }
   if (stage === 'loading') return <LoadingScreen message="Validando sua sessão segura..." />;
   if (stage === 'login' || !user) return <LoginScreen />;
   if (stage === 'password') return <SetPasswordScreen user={user} onComplete={(updatedUser) => { setUser(updatedUser); setStage('preparing'); }} />;
@@ -421,6 +431,7 @@ export function AuthGate({ children }: PropsWithChildren) {
     <AuthContext.Provider
       value={{
         user,
+        cloudEnabled: true,
         migrationResult,
         forgetAfterDays,
         setForgetAfterDays: (days) => {
