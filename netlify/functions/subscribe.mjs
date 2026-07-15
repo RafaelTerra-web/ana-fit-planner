@@ -27,12 +27,13 @@ export const handler = async (event) => {
 
   const store = getStore('ana-fit-push-subscriptions');
   const key = getSubscriptionKey(subscription.endpoint);
+  const existing = await store.get(key, { type: 'json' });
 
   await store.setJSON(key, {
     subscription,
-    reminders: Array.isArray(body.reminders) ? body.reminders : [],
-    timezone: body.timezone || 'America/Sao_Paulo',
-    lastSent: {},
+    reminders: Array.isArray(body.reminders) ? body.reminders : existing?.reminders ?? [],
+    timezone: body.timezone || existing?.timezone || 'America/Sao_Paulo',
+    lastSent: existing?.lastSent ?? {},
     updatedAt: new Date().toISOString(),
   });
 

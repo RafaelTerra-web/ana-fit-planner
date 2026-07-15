@@ -1,5 +1,6 @@
-import { Check, ChevronDown, Copy, Dumbbell, Plus, TimerReset, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Check, ChevronDown, Copy, Dumbbell, Plus, Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useRestTimer } from '../hooks/useRestTimer';
 import type { Exercise, ExerciseLog, ExerciseSetLog } from '../types';
 import { getExerciseFeedback } from '../utils/progressRules';
 import { getMuscleLabel } from '../utils/workoutVolume';
@@ -31,11 +32,6 @@ function parseRestSeconds(value: string) {
   return /min/i.test(value) ? firstNumber * 60 : firstNumber;
 }
 
-function formatTimer(seconds: number) {
-  const minutes = Math.floor(seconds / 60);
-  return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-}
-
 function setSummary(set?: ExerciseSetLog) {
   if (!set || (!set.weight && !set.reps && !set.rir)) {
     return null;
@@ -48,23 +44,11 @@ function setSummary(set?: ExerciseSetLog) {
 
 export function ExerciseCard({ exercise, log, previousLog, defaultExpanded = false, readOnly = false, onChange }: ExerciseCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [restSeconds, setRestSeconds] = useState(0);
+  const { startRest } = useRestTimer();
   const completedCount = log.sets.slice(0, log.plannedSetCount).filter((set) => set.completed).length;
   const extraSetCount = Math.max(0, log.sets.length - log.plannedSetCount);
   const isComplete = log.plannedSetCount > 0 && completedCount === log.plannedSetCount;
   const previousSummary = useMemo(() => setSummary(previousLog?.sets.find((set) => set.completed) ?? previousLog?.sets[0]), [previousLog]);
-
-  useEffect(() => {
-    if (restSeconds <= 0) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setRestSeconds((current) => Math.max(0, current - 1));
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [restSeconds]);
 
   const updateLog = (changes: Partial<ExerciseLog>) => {
     if (readOnly) {
@@ -78,7 +62,11 @@ export function ExerciseCard({ exercise, log, previousLog, defaultExpanded = fal
     updateLog({ sets: nextSets });
 
     if (changes.completed && !log.sets[index]?.completed) {
-      setRestSeconds(parseRestSeconds(exercise.rest));
+      startRest({
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        durationSeconds: parseRestSeconds(exercise.rest),
+      });
     }
   };
 
@@ -176,17 +164,6 @@ export function ExerciseCard({ exercise, log, previousLog, defaultExpanded = fal
             <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-xs font-semibold text-slate-300">
               Última sessão: {previousSummary}
             </p>
-          ) : null}
-
-          {restSeconds > 0 ? (
-            <div className="mt-3 flex items-center justify-between rounded-xl border border-lime-300/25 bg-lime-300/10 px-3 py-2" role="timer" aria-live="polite">
-              <span className="flex items-center gap-2 text-sm font-extrabold text-lime-200">
-                <TimerReset size={17} aria-hidden="true" /> Descanso {formatTimer(restSeconds)}
-              </span>
-              <button className="min-h-10 px-2 text-xs font-extrabold text-lime-200" type="button" onClick={() => setRestSeconds(0)}>
-                Pular
-              </button>
-            </div>
           ) : null}
 
           <div className="mt-4 space-y-2.5" aria-label={`Séries de ${exercise.name}`}>

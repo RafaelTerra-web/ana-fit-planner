@@ -43,6 +43,44 @@ async function getVapidPublicKey() {
   return data.publicKey;
 }
 
+async function getReadyServiceWorker() {
+  const existing = await navigator.serviceWorker.getRegistration();
+  if (existing?.active) return existing;
+
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 4_000)),
+  ]);
+}
+
+async function getOrCreatePushSubscription(registration: ServiceWorkerRegistration) {
+  if (!('PushManager' in window)) return null;
+
+  const existingSubscription = await registration.pushManager.getSubscription();
+  if (existingSubscription) return existingSubscription;
+
+  const publicKey = await getVapidPublicKey();
+  return registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(publicKey),
+  });
+}
+
+async function savePushSubscription(subscription: PushSubscription, settings?: NotificationSettings) {
+  const response = await fetch('/.netlify/functions/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      subscription: subscription.toJSON(),
+      ...(settings ? { reminders: settings.reminders, timezone: settings.timezone } : {}),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Não foi possível salvar os alertas no servidor.');
+  }
+}
+
 export function getNotificationSupportMessage() {
   if (!('serviceWorker' in navigator)) {
     return 'Service worker não disponível neste navegador.';
@@ -70,35 +108,66 @@ export async function enablePushNotifications(settings: NotificationSettings) {
     throw new Error('Permissão de notificação não concedida.');
   }
 
-  const registration = await navigator.serviceWorker.ready;
-  const publicKey = await getVapidPublicKey();
-  const existingSubscription = await registration.pushManager.getSubscription();
-  const subscription =
-    existingSubscription ??
-    (await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
-    }));
+  const registration = await getReadyServiceWorker();
+  if (!registration) throw new Error('O aplicativo ainda está preparando os alertas. Tente novamente em instantes.');
 
-  await fetch('/.netlify/functions/subscribe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      subscription: subscription.toJSON(),
-      reminders: settings.reminders,
-      timezone: settings.timezone,
-    }),
-  }).then((response) => {
-    if (!response.ok) {
-      throw new Error('Não foi possível salvar os lembretes no servidor.');
-    }
-  });
+  const subscription = await getOrCreatePushSubscription(registration);
+  if (!subscription) throw new Error('Push não disponível neste aparelho.');
+  await savePushSubscription(subscription, settings);
 
   return {
     endpoint: subscription.endpoint,
     permission,
     syncedAt: new Date().toISOString(),
   };
+}
+
+export function prepareRestNotifications(): Promise<string | null> {
+  if (!('serviceWorker' in navigator) || !('Notification' in window)) {
+    return Promise.resolve(null);
+  }
+
+  const permissionPromise =
+    Notification.permission === 'default'
+      ? Notification.requestPermission()
+      : Promise.resolve(Notification.permission);
+
+  return permissionPromise.then(async (permission) => {
+    if (permission !== 'granted') return null;
+
+    const registration = await getReadyServiceWorker();
+    if (!registration) return null;
+
+    try {
+      const subscription = await getOrCreatePushSubscription(registration);
+      if (!subscription) return null;
+      await savePushSubscription(subscription);
+      return subscription.endpoint;
+    } catch {
+      // Local notification permission can still be used without remote push.
+      return null;
+    }
+  });
+}
+
+export async function showRestCompleteNotification(exerciseName: string, alarmId: string) {
+  if (!('serviceWorker' in navigator) || !('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const registration = await getReadyServiceWorker();
+  if (!registration) return;
+
+  const options: NotificationOptions & { renotify: boolean; requireInteraction: boolean; vibrate: number[] } = {
+    body: `${exerciseName}: hora da próxima série.`,
+    icon: '/pwa-icon.svg',
+    badge: '/pwa-icon.svg',
+    tag: alarmId,
+    renotify: true,
+    requireInteraction: true,
+    vibrate: [320, 120, 320, 120, 650],
+    data: { url: '/?tab=workout' },
+  };
+
+  await registration.showNotification('Descanso acabou!', options);
 }
 
 export async function showTestNotification() {
@@ -112,7 +181,8 @@ export async function showTestNotification() {
     throw new Error('Permissão de notificação não concedida.');
   }
 
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await getReadyServiceWorker();
+  if (!registration) throw new Error('O aplicativo ainda está preparando os alertas. Tente novamente em instantes.');
   await registration.showNotification('Ana Fit Planner', {
     body: 'Notificações ativadas. Os lembretes de treino e refeições vão aparecer aqui.',
     icon: '/pwa-icon.svg',

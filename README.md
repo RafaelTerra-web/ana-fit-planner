@@ -8,6 +8,7 @@ PWA mobile-first para acompanhar treino, dieta, cardio, hábitos e progresso cor
 - Registro individual por série com carga, repetições, RIR e conclusão.
 - Séries extras, cópia da série anterior, referência da última sessão e notas por exercício.
 - Timer de descanso iniciado ao concluir uma série.
+- Alarme global de descanso com som, aviso visual e vibração quando suportada. Com o PWA instalado e as notificações permitidas, um Web Push agendado avisa mesmo se o iPhone suspender o aplicativo.
 - Feedback de progressão baseado no conjunto das séries, não em um único valor agregado.
 - Editor de split, treinos, exercícios, ordem, músculos-alvo e número de séries em **Gerenciar plano**.
 - Migração automática dos dados locais `v4` para `v5`; cargas antigas entram como referência, sem inventar histórico ou XP.

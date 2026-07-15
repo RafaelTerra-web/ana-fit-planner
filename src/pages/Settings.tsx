@@ -253,7 +253,7 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
           <h2 className="section-title">Notificações</h2>
         </div>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          No iPhone, as notificações push funcionam quando o app está instalado na Tela de Início e aberto pelo ícone instalado.
+          Inclui refeições, treino e o aviso de descanso concluído. No iPhone, funciona quando o app está instalado na Tela de Início e aberto pelo ícone.
         </p>
         <div className="mt-4 space-y-3">
           {data.notifications.reminders.map((reminder) => (

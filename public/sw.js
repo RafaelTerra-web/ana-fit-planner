@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ana-fit-planner-v5';
+const CACHE_NAME = 'ana-fit-planner-v6';
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/favicon.svg',
@@ -126,6 +126,9 @@ self.addEventListener('push', (event) => {
       icon: '/pwa-icon.svg',
       badge: '/pwa-icon.svg',
       tag: payload.tag,
+      renotify: Boolean(payload.renotify),
+      requireInteraction: Boolean(payload.requireInteraction),
+      vibrate: Array.isArray(payload.vibrate) ? payload.vibrate : undefined,
       data: { url: payload.url },
     })
   );
