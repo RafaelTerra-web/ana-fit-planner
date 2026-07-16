@@ -40,7 +40,7 @@ function AuthShell({ children }: PropsWithChildren) {
         <section className="auth-hero" aria-label="Ana Fit">
           <div className="auth-brand">
             <span className="auth-brand-mark">
-              <img src="/pwa-icon.svg" alt="" aria-hidden="true" />
+              <img src="/pwa-icon.svg?v=2" alt="" aria-hidden="true" />
             </span>
             <span>
               <strong>Ana Fit</strong>

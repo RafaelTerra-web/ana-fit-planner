@@ -1,8 +1,8 @@
 const CACHE_NAME = 'ana-fit-planner-v7';
 const APP_SHELL = [
   '/manifest.webmanifest',
-  '/favicon.svg',
-  '/pwa-icon.svg',
+  '/favicon.svg?v=2',
+  '/pwa-icon.svg?v=2',
   '/pwa-icon-192.png',
   '/pwa-icon-512.png',
   '/apple-touch-icon.png',
