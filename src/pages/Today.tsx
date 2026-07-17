@@ -1,4 +1,4 @@
-import { Activity, ArrowRight, Check, Droplets, Dumbbell, Footprints, HeartPulse, Utensils } from 'lucide-react';
+import { Activity, ArrowRight, Check, Droplets, Dumbbell, Footprints, HeartPulse, MoonStar, Utensils } from 'lucide-react';
 import { Card } from '../components/Card';
 import { RankCard } from '../components/RankCard';
 import { getWorkoutById } from '../data/workoutPlan';
@@ -64,6 +64,8 @@ export function Today({ data, dateKey, todayChecks, todayPlan, onSelectTab, onSt
   const mealsCompleted = data.meals.filter((meal) => todayChecks.meals[meal.id]).length;
   const nextMeal = data.meals.find((meal) => !todayChecks.meals[meal.id]);
   const dateLabel = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(now);
+  const isCardioDay = todayPlan.activityType === 'cardio';
+  const isRestDay = todayPlan.activityType === 'rest';
 
   return (
     <div className="space-y-4">
@@ -84,14 +86,16 @@ export function Today({ data, dateKey, todayChecks, todayPlan, onSelectTab, onSt
         <div className="p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="eyebrow">{todayWorkout ? 'Treino principal' : 'Plano do dia'}</p>
+              <p className="eyebrow">{todayWorkout ? 'Treino principal' : isCardioDay ? 'Cardio programado' : 'Dia de recuperação'}</p>
               <h2 className="mt-2 text-2xl font-black leading-tight text-white">{todayPlan.title}</h2>
               <p className="mt-2 text-sm leading-relaxed text-slate-400">
                 {todayWorkout?.focus ?? todayPlan.cardio ?? todayPlan.rest ?? 'Recupere bem para a próxima sessão.'}
               </p>
             </div>
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-300 text-slate-950">
-              {todayWorkout ? <Dumbbell size={23} aria-hidden="true" /> : <HeartPulse size={22} aria-hidden="true" />}
+            <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-950 ${
+              todayWorkout ? 'bg-rose-300' : isCardioDay ? 'bg-teal-300' : 'bg-violet-300'
+            }`}>
+              {todayWorkout ? <Dumbbell size={23} aria-hidden="true" /> : isCardioDay ? <HeartPulse size={22} aria-hidden="true" /> : <MoonStar size={22} aria-hidden="true" />}
             </span>
           </div>
 
@@ -115,10 +119,10 @@ export function Today({ data, dateKey, todayChecks, todayPlan, onSelectTab, onSt
             if (todayWorkout && !session) {
               onStartWorkout(todayWorkout.id);
             }
-            onSelectTab(todayWorkout ? 'workout' : todayPlan.cardio ? 'workout' : 'progress');
+            onSelectTab(todayWorkout ? 'workout' : isCardioDay ? 'workout' : 'progress');
           }}
         >
-          <span>{session?.completedAt ? 'Rever sessão' : session ? 'Continuar treino' : todayWorkout ? 'Começar treino' : 'Ver atividade'}</span>
+          <span>{session?.completedAt ? 'Rever sessão' : session ? 'Continuar treino' : todayWorkout ? 'Começar treino' : isRestDay ? 'Ver progresso' : 'Ver cardio'}</span>
           <ArrowRight size={19} aria-hidden="true" />
         </button>
       </Card>
@@ -146,7 +150,7 @@ export function Today({ data, dateKey, todayChecks, todayPlan, onSelectTab, onSt
             helper="Meta pessoal · +10 XP"
             onClick={() => onToggleCheck('stepsDone')}
           />
-          {todayPlan.cardio ? (
+          {isCardioDay && todayPlan.cardio ? (
             <CheckAction
               checked={todayChecks.cardioDone}
               icon={HeartPulse}

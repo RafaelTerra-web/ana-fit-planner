@@ -44,7 +44,7 @@ import {
   normalizeWorkoutSessions,
   reconcileWorkoutSession,
 } from './utils/workoutSessions';
-import { createDefaultWeekPlan, createDefaultWorkouts, normalizeWorkoutData } from './utils/workoutVolume';
+import { createDefaultWeekPlan, createDefaultWorkouts, getWeeklyActivityCounts, normalizeWorkoutData } from './utils/workoutVolume';
 
 const tabs: AppTab[] = ['today', 'workout', 'diet', 'progress', 'settings'];
 
@@ -123,7 +123,7 @@ function normalizeAppData(value: unknown): AppData {
   const profile = isRecord(value.profile) ? value.profile : {};
   const goals = isRecord(value.goals) ? value.goals : {};
   const notifications = isRecord(value.notifications) ? value.notifications : {};
-  const normalizedWorkoutData = normalizeWorkoutData({
+  let normalizedWorkoutData = normalizeWorkoutData({
     ...fallback,
     schemaVersion: 5,
     profile: {
@@ -149,6 +149,20 @@ function normalizeAppData(value: unknown): AppData {
     rank: normalizeRankState(value.rank),
     progressEntries: Array.isArray(value.progressEntries) ? (value.progressEntries as ProgressEntry[]) : fallback.progressEntries,
   });
+
+  const storedTrainingDays = typeof profile.trainingDays === 'number' ? profile.trainingDays : fallback.profile.trainingDays;
+  const storedCardioDays = typeof profile.cardioDays === 'number' ? profile.cardioDays : fallback.profile.cardioDays;
+  if (
+    storedTrainingDays !== normalizedWorkoutData.profile.trainingDays ||
+    storedCardioDays !== normalizedWorkoutData.profile.cardioDays
+  ) {
+    const scheduleGoals = calculateDynamicGoals(normalizedWorkoutData.profile);
+    normalizedWorkoutData = {
+      ...normalizedWorkoutData,
+      goals: scheduleGoals,
+      meals: calculateMealPlan(normalizedWorkoutData.profile, scheduleGoals),
+    };
+  }
 
   const workoutSessions = normalizeWorkoutSessions(value.workoutSessions, normalizedWorkoutData.workouts);
   const storedActiveSessionId = typeof value.activeWorkoutSessionId === 'string' ? value.activeWorkoutSessionId : null;
@@ -190,10 +204,15 @@ function App() {
 
   useEffect(() => {
     const storedRank = isRecord(storedData) ? storedData.rank : undefined;
+    const storedWeekPlan = isRecord(storedData) ? storedData.weekPlan : undefined;
+    const storedProfile = isRecord(storedData) && isRecord(storedData.profile) ? storedData.profile : undefined;
     if (
       !isRecord(storedData) ||
       storedData.schemaVersion !== 5 ||
-      JSON.stringify(storedRank) !== JSON.stringify(data.rank)
+      JSON.stringify(storedRank) !== JSON.stringify(data.rank) ||
+      JSON.stringify(storedWeekPlan) !== JSON.stringify(data.weekPlan) ||
+      storedProfile?.trainingDays !== data.profile.trainingDays ||
+      storedProfile?.cardioDays !== data.profile.cardioDays
     ) {
       setStoredData(data);
     }
@@ -313,7 +332,8 @@ function App() {
 
       if (nextValue && key !== 'trainingDone') {
         const kind = key === 'cardioDone' ? 'cardio' : key === 'waterDone' ? 'water' : 'steps';
-        const canClaim = kind !== 'cardio' || Boolean(getTodayPlan(current.weekPlan).cardio);
+        const currentDayPlan = getTodayPlan(current.weekPlan);
+        const canClaim = kind !== 'cardio' || (currentDayPlan.activityType === 'cardio' && Boolean(currentDayPlan.cardio));
         if (canClaim && actionDateKey >= rank.startedOn) {
           rank = claimRankEvent(
             rank,
@@ -530,7 +550,27 @@ function App() {
   };
 
   const updateWeekPlan = (weekPlan: WeekPlanItem[]) => {
-    updateData((current) => ({ ...current, weekPlan }));
+    updateData((current) => {
+      const counts = getWeeklyActivityCounts(weekPlan);
+      if (current.profile.trainingDays === counts.workout && current.profile.cardioDays === counts.cardio) {
+        return { ...current, weekPlan };
+      }
+
+      const nextProfile = {
+        ...current.profile,
+        trainingDays: counts.workout,
+        cardioDays: counts.cardio,
+      };
+      const nextGoals = calculateDynamicGoals(nextProfile);
+
+      return {
+        ...current,
+        weekPlan,
+        profile: nextProfile,
+        goals: nextGoals,
+        meals: calculateMealPlan(nextProfile, nextGoals),
+      };
+    });
   };
 
   const addProgress = (entry: ProgressEntry) => {

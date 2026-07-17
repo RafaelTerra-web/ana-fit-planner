@@ -10,8 +10,8 @@ function roundToNearest(value: number, step: number) {
 
 export function calculateDynamicGoals(profile: Profile): Goals {
   const weight = profile.weightKg || 62;
-  const trainingDays = profile.trainingDays || 4;
-  const cardioDays = profile.cardioDays || 3;
+  const trainingDays = Number.isFinite(profile.trainingDays) ? profile.trainingDays : 4;
+  const cardioDays = Number.isFinite(profile.cardioDays) ? profile.cardioDays : 3;
   const estimatedMaintenance = weight * 26 + trainingDays * 45 + cardioDays * 25;
   const calories = roundToNearest(clamp(estimatedMaintenance - 250, 1500, 1900), 25);
   const protein = roundToNearest(clamp(weight * 1.9, 105, 145), 5);

@@ -98,9 +98,12 @@ export type Workout = {
   cardio?: string;
 };
 
+export type WeekActivityType = 'workout' | 'cardio' | 'rest';
+
 export type WeekPlanItem = {
   dayIndex: number;
   dayLabel: string;
+  activityType: WeekActivityType;
   title: string;
   workoutId?: string;
   cardio?: string;

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ana-fit-planner-v7';
+const CACHE_NAME = 'ana-fit-planner-v8';
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/favicon.svg?v=2',

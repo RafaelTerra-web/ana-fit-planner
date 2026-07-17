@@ -6,7 +6,7 @@ export const defaultProfile: Profile = {
   heightCm: 165,
   weightKg: 62,
   trainingDays: 4,
-  cardioDays: 3,
+  cardioDays: 2,
   preferredFoods: [
     'Peito de frango',
     'Arroz',

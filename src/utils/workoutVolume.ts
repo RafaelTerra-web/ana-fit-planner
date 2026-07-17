@@ -1,5 +1,5 @@
 import { weekPlan as defaultWeekPlan, workouts as defaultWorkouts } from '../data/workoutPlan';
-import type { AppData, Exercise, ExerciseTarget, MuscleGroup, WeekPlanItem, Workout } from '../types';
+import type { AppData, Exercise, ExerciseTarget, MuscleGroup, WeekActivityType, WeekPlanItem, Workout } from '../types';
 
 export const muscleOptions: Array<{ value: MuscleGroup; label: string }> = [
   { value: 'glutes', label: 'Gluteos' },
@@ -33,6 +33,7 @@ export type VolumeStatus = {
 };
 
 const validMuscles = new Set<MuscleGroup>(muscleOptions.map((option) => option.value));
+const validWeekActivityTypes = new Set<WeekActivityType>(['workout', 'cardio', 'rest']);
 
 function cloneWorkouts(source: Workout[]) {
   return source.map((workout) => ({
@@ -46,6 +47,26 @@ function cloneWorkouts(source: Workout[]) {
 
 function cloneWeekPlan(source: WeekPlanItem[]) {
   return source.map((item) => ({ ...item }));
+}
+
+export function getWeekActivityType(item: Partial<WeekPlanItem>): WeekActivityType {
+  if (item.activityType && validWeekActivityTypes.has(item.activityType)) {
+    return item.activityType;
+  }
+
+  if (item.workoutId) return 'workout';
+  if (item.cardio) return 'cardio';
+  return 'rest';
+}
+
+export function getWeeklyActivityCounts(weekPlan: WeekPlanItem[]) {
+  return weekPlan.reduce(
+    (counts, item) => {
+      counts[getWeekActivityType(item)] += 1;
+      return counts;
+    },
+    { workout: 0, cardio: 0, rest: 0 } as Record<WeekActivityType, number>
+  );
 }
 
 export function getMuscleLabel(muscle: MuscleGroup) {
@@ -66,7 +87,7 @@ export function calculateWeeklyVolume(workouts: Workout[], weekPlan: WeekPlanIte
   const workoutsById = new Map(workouts.map((workout) => [workout.id, workout]));
 
   weekPlan.forEach((day) => {
-    if (!day.workoutId) {
+    if (getWeekActivityType(day) !== 'workout' || !day.workoutId) {
       return;
     }
 
@@ -229,14 +250,88 @@ function normalizeWorkouts(input: Workout[] | undefined) {
 
 function normalizeWeekPlan(input: WeekPlanItem[] | undefined) {
   const source = Array.isArray(input) && input.length ? input : defaultWeekPlan;
-  return source.map((item) => ({ ...item }));
+  const legacyPlan = source.some((item) => !validWeekActivityTypes.has((item as Partial<WeekPlanItem>).activityType as WeekActivityType));
+  const storedByDay = new Map(source.map((item) => [item.dayIndex, item]));
+
+  return defaultWeekPlan.map((fallback) => {
+    const stored = storedByDay.get(fallback.dayIndex);
+    let item: WeekPlanItem = { ...fallback, ...stored, dayIndex: fallback.dayIndex, dayLabel: fallback.dayLabel };
+
+    if (item.dayIndex === 2 && stored?.workoutId === 'superior-core' && item.title === 'Superior + Core + Cardio leve') {
+      item = {
+        ...item,
+        activityType: 'workout',
+        title: 'Superior + Core',
+        cardio: undefined,
+        rest: undefined,
+      };
+    } else if (legacyPlan && item.dayIndex === 3 && !stored?.workoutId) {
+      item = {
+        ...item,
+        activityType: 'workout',
+        title: 'Inferior B - Posterior + quadriceps',
+        workoutId: 'inferior-b',
+        cardio: undefined,
+        rest: undefined,
+      };
+    } else if (legacyPlan && item.dayIndex === 4 && stored?.workoutId === 'inferior-b') {
+      item = {
+        ...item,
+        activityType: 'cardio',
+        title: 'Cardio leve',
+        workoutId: undefined,
+        cardio: stored.cardio || '25 a 40 min leve',
+        rest: undefined,
+      };
+    }
+
+    const activityType = getWeekActivityType(item);
+
+    if (activityType === 'workout') {
+      return {
+        ...item,
+        activityType,
+        workoutId: item.workoutId || fallback.workoutId || defaultWorkouts[0].id,
+        cardio: undefined,
+        rest: undefined,
+      };
+    }
+
+    if (activityType === 'cardio') {
+      return {
+        ...item,
+        activityType,
+        title: item.title || 'Cardio leve',
+        workoutId: undefined,
+        cardio: item.cardio || fallback.cardio || '25 a 40 min leve',
+        rest: undefined,
+      };
+    }
+
+    return {
+      ...item,
+      activityType: 'rest' as const,
+      title: item.title || 'Descanso',
+      workoutId: undefined,
+      cardio: undefined,
+      rest: item.rest || fallback.rest || 'Recuperacao e rotina leve.',
+    };
+  });
 }
 
 export function normalizeWorkoutData(data: AppData): AppData {
+  const weekPlan = normalizeWeekPlan(data.weekPlan);
+  const activityCounts = getWeeklyActivityCounts(weekPlan);
+
   return {
     ...data,
+    profile: {
+      ...data.profile,
+      trainingDays: activityCounts.workout,
+      cardioDays: activityCounts.cardio,
+    },
     workouts: normalizeWorkouts(data.workouts),
-    weekPlan: normalizeWeekPlan(data.weekPlan),
+    weekPlan,
   };
 }
 
