@@ -85,7 +85,7 @@ export function calculateMealPlan(profile: Profile, goals: Goals): Meal[] {
       protein: snackProtein,
       carbs: snackCarbs,
       fat: snackFat,
-      items: [snackOption, `${cheeseGrams} g de queijo se trocar por pão com queijo`, '80 g de banana opcional, se ela aceitar'],
+      items: [snackOption, `${cheeseGrams} g de queijo se trocar por pão com queijo`, '80 g de banana opcional, se quiser'],
       note: 'Em dia de treino fraco, concentrar mais carboidrato antes do treino.',
     },
     {

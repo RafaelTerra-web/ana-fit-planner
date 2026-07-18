@@ -21,30 +21,20 @@ export const handler = async (event) => {
     return jsonResponse(400, { error: 'Corpo inválido.' });
   }
 
-  const subscription = body.subscription;
-  if (
-    typeof subscription?.endpoint !== 'string' ||
-    !subscription.endpoint.startsWith('https://') ||
-    subscription.endpoint.length > 2_048
-  ) {
-    return jsonResponse(400, { error: 'Assinatura inválida.' });
+  const endpoint = body.endpoint;
+  if (typeof endpoint !== 'string' || !endpoint.startsWith('https://') || endpoint.length > 2_048) {
+    return jsonResponse(400, { error: 'Endpoint inválido.' });
   }
 
   const store = getStore('ana-fit-push-subscriptions');
-  const key = getSubscriptionKey(subscription.endpoint);
+  const key = getSubscriptionKey(endpoint);
   const existing = await store.get(key, { type: 'json' });
-  const sameUser = existing?.userId === auth.user.id;
-  const now = new Date().toISOString();
 
-  await store.setJSON(key, {
-    userId: auth.user.id,
-    subscription,
-    reminders: Array.isArray(body.reminders) ? body.reminders : sameUser ? existing?.reminders ?? [] : [],
-    timezone: body.timezone || (sameUser ? existing?.timezone : null) || 'America/Sao_Paulo',
-    lastSent: sameUser ? existing?.lastSent ?? {} : {},
-    createdAt: sameUser ? existing?.createdAt ?? now : now,
-    updatedAt: now,
-  });
+  // The ownership check prevents an old session from deleting an endpoint
+  // that a different account has already claimed on the same browser.
+  if (existing?.userId === auth.user.id) {
+    await store.delete(key);
+  }
 
   return jsonResponse(200, { ok: true });
 };

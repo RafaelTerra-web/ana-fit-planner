@@ -1,4 +1,20 @@
 import type { NotificationSettings, Reminder } from '../types';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
+
+type NotificationFunctionName = 'subscribe' | 'unsubscribe' | 'rest-alarm-background' | 'cancel-rest-alarm';
+
+type AuthenticatedRequestOptions = {
+  accessToken?: string;
+  keepalive?: boolean;
+};
+
+type KnownSession = {
+  userId: string;
+  accessToken: string;
+};
+
+let knownSession: KnownSession | null = null;
+let ownershipQueue = Promise.resolve();
 
 export const defaultReminders: Reminder[] = [
   { id: 'meal-breakfast', label: 'Café da manhã', time: '08:00', enabled: true, kind: 'meal' },
@@ -15,6 +31,33 @@ export function createDefaultNotificationSettings(): NotificationSettings {
     reminders: defaultReminders,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo',
   };
+}
+
+async function getCurrentAccessToken() {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error) return null;
+  return data.session?.access_token ?? null;
+}
+
+export async function sendAuthenticatedNotificationRequest(
+  functionName: NotificationFunctionName,
+  body: unknown,
+  options: AuthenticatedRequestOptions = {}
+) {
+  const accessToken = options.accessToken || (await getCurrentAccessToken());
+  if (!accessToken) return null;
+
+  return fetch(`/.netlify/functions/${functionName}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+    keepalive: options.keepalive,
+  });
 }
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -66,19 +109,135 @@ async function getOrCreatePushSubscription(registration: ServiceWorkerRegistrati
   });
 }
 
-async function savePushSubscription(subscription: PushSubscription, settings?: NotificationSettings) {
-  const response = await fetch('/.netlify/functions/subscribe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+async function savePushSubscription(
+  subscription: PushSubscription,
+  settings?: NotificationSettings,
+  accessToken?: string
+) {
+  const response = await sendAuthenticatedNotificationRequest(
+    'subscribe',
+    {
       subscription: subscription.toJSON(),
       ...(settings ? { reminders: settings.reminders, timezone: settings.timezone } : {}),
-    }),
-  });
+    },
+    accessToken ? { accessToken } : undefined
+  );
+
+  if (!response) {
+    if (isSupabaseConfigured) {
+      throw new Error('Entre novamente para vincular os alertas à sua conta.');
+    }
+
+    // Local development keeps local alarms available without a cloud session.
+    return false;
+  }
 
   if (!response.ok) {
     throw new Error('Não foi possível salvar os alertas no servidor.');
   }
+
+  return true;
+}
+
+async function getExistingPushSubscription() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+
+  const registration = await navigator.serviceWorker.getRegistration();
+  return registration?.pushManager.getSubscription() ?? null;
+}
+
+async function detachExistingPushSubscription(accessToken: string) {
+  const subscription = await getExistingPushSubscription();
+  if (!subscription) return true;
+
+  const response = await sendAuthenticatedNotificationRequest(
+    'unsubscribe',
+    { endpoint: subscription.endpoint },
+    { accessToken, keepalive: true }
+  );
+
+  return Boolean(response?.ok);
+}
+
+/**
+ * Call this before `supabase.auth.signOut()` when the app owns the logout flow.
+ * The auth-state listener below is a fallback, but awaiting this function keeps
+ * the user's token available until the server confirms the endpoint removal.
+ */
+export async function detachPushSubscriptionForCurrentUser() {
+  let serverDetached = false;
+  try {
+    const accessToken = await getCurrentAccessToken();
+    if (accessToken) {
+      serverDetached = await detachExistingPushSubscription(accessToken);
+    }
+  } catch {
+    // The browser subscription is still invalidated below if the server is offline.
+  }
+
+  let browserDetached = true;
+  try {
+    const subscription = await getExistingPushSubscription();
+    if (subscription) {
+      browserDetached = await subscription.unsubscribe();
+    }
+  } catch {
+    browserDetached = false;
+  }
+
+  return serverDetached && browserDetached;
+}
+
+export async function syncPushSubscriptionForCurrentUser(settings: NotificationSettings) {
+  const accessToken = await getCurrentAccessToken();
+  if (!accessToken) return false;
+
+  const subscription = await getExistingPushSubscription();
+  if (!subscription) return false;
+
+  return savePushSubscription(subscription, settings, accessToken);
+}
+
+async function syncExistingPushSubscription(accessToken: string) {
+  const subscription = await getExistingPushSubscription();
+  if (!subscription) return;
+  await savePushSubscription(subscription, undefined, accessToken);
+}
+
+function queueSessionOwnership(nextSession: KnownSession | null) {
+  const previousSession = knownSession;
+  knownSession = nextSession;
+
+  if (previousSession?.userId === nextSession?.userId) return;
+
+  ownershipQueue = ownershipQueue
+    .then(async () => {
+      try {
+        if (previousSession) {
+          await detachExistingPushSubscription(previousSession.accessToken);
+        }
+      } finally {
+        // A failed detach must never prevent the next account from claiming
+        // the same endpoint and replacing the previous owner's reminders.
+        if (nextSession) {
+          await syncExistingPushSubscription(nextSession.accessToken);
+        }
+      }
+    })
+    .catch(() => undefined);
+}
+
+if (supabase && typeof window !== 'undefined') {
+  supabase.auth.onAuthStateChange((_event, session) => {
+    queueSessionOwnership(
+      session
+        ? {
+            userId: session.user.id,
+            accessToken: session.access_token,
+          }
+        : null
+    );
+  });
 }
 
 export function getNotificationSupportMessage() {
@@ -141,8 +300,8 @@ export function prepareRestNotifications(): Promise<string | null> {
     try {
       const subscription = await getOrCreatePushSubscription(registration);
       if (!subscription) return null;
-      await savePushSubscription(subscription);
-      return subscription.endpoint;
+      const saved = await savePushSubscription(subscription);
+      return saved ? subscription.endpoint : null;
     } catch {
       // Local notification permission can still be used without remote push.
       return null;

@@ -1,5 +1,6 @@
 import { BellRing, TimerReset, X } from 'lucide-react';
 import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../auth/authContext';
 import { RestTimerContext, type RestTimer } from '../hooks/useRestTimer';
 import {
   cancelRemoteRestAlarm,
@@ -17,9 +18,9 @@ function createAlarmId() {
   return `rest-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function readStoredTimer(): RestTimer | null {
+function readStoredTimer(storageKey: string): RestTimer | null {
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(REST_TIMER_STORAGE_KEY) ?? 'null') as Partial<RestTimer> | null;
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? 'null') as Partial<RestTimer> | null;
     if (
       parsed &&
       typeof parsed.alarmId === 'string' &&
@@ -44,16 +45,18 @@ function formatTimer(seconds: number) {
 }
 
 export function RestTimerProvider({ children }: PropsWithChildren) {
-  const [timer, setTimer] = useState<RestTimer | null>(readStoredTimer);
+  const { user } = useAuth();
+  const storageKey = user ? `${REST_TIMER_STORAGE_KEY}:user:${user.id}` : REST_TIMER_STORAGE_KEY;
+  const [timer, setTimer] = useState<RestTimer | null>(() => readStoredTimer(storageKey));
   const [remainingSeconds, setRemainingSeconds] = useState(() => (timer ? Math.max(0, Math.ceil((timer.endsAt - Date.now()) / 1_000)) : 0));
   const [finishedRest, setFinishedRest] = useState<FinishedRest | null>(null);
 
   const skipRest = useCallback(() => {
     if (timer) void cancelRemoteRestAlarm(timer.alarmId);
-    window.localStorage.removeItem(REST_TIMER_STORAGE_KEY);
+    window.localStorage.removeItem(storageKey);
     setTimer(null);
     setRemainingSeconds(0);
-  }, [timer]);
+  }, [storageKey, timer]);
 
   const startRest = useCallback(
     ({ exerciseId, exerciseName, durationSeconds }: { exerciseId: string; exerciseName: string; durationSeconds: number }) => {
@@ -69,7 +72,7 @@ export function RestTimerProvider({ children }: PropsWithChildren) {
         endsAt: Date.now() + durationSeconds * 1_000,
       };
 
-      window.localStorage.setItem(REST_TIMER_STORAGE_KEY, JSON.stringify(nextTimer));
+      window.localStorage.setItem(storageKey, JSON.stringify(nextTimer));
       setTimer(nextTimer);
       setRemainingSeconds(durationSeconds);
 
@@ -77,7 +80,7 @@ export function RestTimerProvider({ children }: PropsWithChildren) {
         .then((subscriptionEndpoint) => scheduleRemoteRestAlarm(nextTimer, subscriptionEndpoint))
         .catch(() => undefined);
     },
-    [timer]
+    [storageKey, timer]
   );
 
   useEffect(() => {
@@ -89,7 +92,7 @@ export function RestTimerProvider({ children }: PropsWithChildren) {
       if (nextRemaining > 0) return;
 
       const lateBy = Date.now() - timer.endsAt;
-      window.localStorage.removeItem(REST_TIMER_STORAGE_KEY);
+      window.localStorage.removeItem(storageKey);
       setTimer(null);
       setFinishedRest({ alarmId: timer.alarmId, exerciseName: timer.exerciseName });
       void cancelRemoteRestAlarm(timer.alarmId);
@@ -99,7 +102,7 @@ export function RestTimerProvider({ children }: PropsWithChildren) {
     updateTimer();
     const interval = window.setInterval(updateTimer, 250);
     return () => window.clearInterval(interval);
-  }, [timer]);
+  }, [storageKey, timer]);
 
   useEffect(() => {
     if (!finishedRest) return;

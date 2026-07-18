@@ -37,7 +37,7 @@ export function Diet({ data, todayChecks, onToggleMeal }: DietProps) {
       <header className="pt-2">
         <p className="text-sm font-semibold text-rose-700">Cutting leve e sustentável</p>
         <h1 className="page-title mt-1">Dieta</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">Plano com alimentos que a Ana realmente come, sem basear a dieta em salada.</p>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">Plano baseado nas suas preferências, com porções e macros ajustados ao seu perfil.</p>
       </header>
 
       {nextMeal ? (

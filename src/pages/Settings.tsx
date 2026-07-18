@@ -2,8 +2,9 @@ import { Bell, Cloud, CloudOff, LogOut, RefreshCw, RotateCcw, Save, Send, Shield
 import { useState } from 'react';
 import { useAuth, type ForgetAfterDays } from '../auth/authContext';
 import { Card } from '../components/Card';
+import { WeekPlanEditor } from '../components/WeekPlanEditor';
 import type { CloudSyncStatus } from '../hooks/useCloudSync';
-import type { AppData, Goals, NotificationSettings, Profile, Reminder } from '../types';
+import type { AppData, Goals, NotificationSettings, Profile, Reminder, WeekPlanItem } from '../types';
 import { estimateProtein } from '../utils/calculations';
 import { calculateDynamicGoals } from '../utils/dietCalculator';
 import { enablePushNotifications, getNotificationSupportMessage, showTestNotification } from '../utils/notifications';
@@ -13,6 +14,7 @@ type SettingsProps = {
   onProfileChange: (profile: Partial<Profile>) => void;
   onGoalsChange: (goals: Partial<Goals>) => void;
   onNotificationsChange: (notifications: Partial<NotificationSettings>) => void;
+  onWeekPlanChange: (weekPlan: WeekPlanItem[]) => void;
   onResetData: () => void;
   cloudSync: {
     status: CloudSyncStatus;
@@ -28,7 +30,7 @@ const forgetOptions: Array<{ value: ForgetAfterDays; label: string }> = [
   { value: 90, label: 'Após 90 dias sem uso' },
 ];
 
-export function Settings({ data, onProfileChange, onGoalsChange, onNotificationsChange, onResetData, cloudSync }: SettingsProps) {
+export function Settings({ data, onProfileChange, onGoalsChange, onNotificationsChange, onWeekPlanChange, onResetData, cloudSync }: SettingsProps) {
   const [notificationMessage, setNotificationMessage] = useState('');
   const { user, cloudEnabled, migrationResult, forgetAfterDays, setForgetAfterDays, signOut } = useAuth();
   const proteinRange = estimateProtein(data.profile.weightKg);
@@ -88,7 +90,7 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
       <header className="pt-2">
         <p className="text-sm font-semibold text-rose-700">Preferências e metas</p>
         <h1 className="page-title mt-1">Ajustes</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">Conta protegida com cópia local e sincronização na nuvem.</p>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">Organize sua rotina, perfil e preferências em um só lugar.</p>
       </header>
 
       {cloudEnabled && user ? (
@@ -98,7 +100,7 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
             <ShieldCheck size={23} aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="section-title">Conta da Ana</h2>
+            <h2 className="section-title">Conta de {data.profile.name || 'Atleta'}</h2>
             <p className="mt-1 truncate text-sm text-slate-400">{user.email}</p>
           </div>
         </div>
@@ -142,6 +144,8 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
       </Card>
       ) : null}
 
+      <WeekPlanEditor weekPlan={data.weekPlan} workouts={data.workouts} onChange={onWeekPlanChange} />
+
       <Card>
         <h2 className="section-title">Perfil</h2>
         <div className="mt-4 grid gap-3">
@@ -168,26 +172,11 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
                 onChange={(event) => onProfileChange({ heightCm: Number(event.target.value) || 0 })}
               />
             </label>
-            <label className="space-y-1 text-sm font-medium text-slate-700">
-              <span>Dias de treino</span>
-              <input
-                className="input"
-                inputMode="numeric"
-                value={data.profile.trainingDays}
-                onChange={(event) => onProfileChange({ trainingDays: Number(event.target.value) || 0 })}
-              />
-            </label>
-            <label className="space-y-1 text-sm font-medium text-slate-700">
-              <span>Dias de cardio</span>
-              <input
-                className="input"
-                inputMode="numeric"
-                value={data.profile.cardioDays}
-                onChange={(event) => onProfileChange({ cardioDays: Number(event.target.value) || 0 })}
-              />
-            </label>
           </div>
         </div>
+        <p className="mt-3 text-xs font-semibold leading-relaxed text-slate-500">
+          A frequência de treino e cardio é calculada automaticamente pela rotina semanal.
+        </p>
         <p className="mt-4 rounded-lg bg-teal-50 p-3 text-sm font-medium text-teal-800">
           Proteína estimada para o peso atual: {proteinRange.low} a {proteinRange.high} g/dia.
         </p>

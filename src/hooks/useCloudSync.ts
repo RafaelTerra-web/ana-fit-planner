@@ -28,7 +28,7 @@ export function useCloudSync(data: unknown) {
 
       const dataToUpload = latestDataRef.current;
       const serialized = JSON.stringify(dataToUpload);
-      const currentMarker = readCloudPendingMarker();
+      const currentMarker = readCloudPendingMarker(userId);
       if (serialized === lastUploadedRef.current && currentMarker?.ownerId !== userId) {
         setStatus('saved');
         return true;
@@ -43,7 +43,7 @@ export function useCloudSync(data: unknown) {
       }
 
       lastUploadedRef.current = serialized;
-      clearCloudPendingMarker(uploadVersion);
+      clearCloudPendingMarker(uploadVersion, userId);
       setLastSyncedAt(new Date().toISOString());
       setStatus('saved');
       return true;

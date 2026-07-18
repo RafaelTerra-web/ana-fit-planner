@@ -2,7 +2,7 @@ import type { Goals, Meal, Profile } from '../types';
 import { calculateDynamicGoals, calculateMealPlan } from '../utils/dietCalculator';
 
 export const defaultProfile: Profile = {
-  name: 'Ana',
+  name: 'Atleta',
   heightCm: 165,
   weightKg: 62,
   trainingDays: 4,

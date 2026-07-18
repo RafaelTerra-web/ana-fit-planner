@@ -5,9 +5,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Dumbbell,
   HeartPulse,
-  MoonStar,
   Pencil,
   Play,
   Plus,
@@ -19,7 +17,7 @@ import { Card } from '../components/Card';
 import { ExerciseCard } from '../components/ExerciseCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { getWorkoutById } from '../data/workoutPlan';
-import type { AppData, DailyChecks, Exercise, ExerciseLog, ExerciseTarget, MuscleGroup, WeekActivityType, WeekPlanItem, Workout as WorkoutModel } from '../types';
+import type { AppData, DailyChecks, Exercise, ExerciseLog, ExerciseTarget, MuscleGroup, WeekPlanItem, Workout as WorkoutModel } from '../types';
 import { calculateAdherence, getWeekCheckEntries } from '../utils/calculations';
 import {
   createWorkoutSession,
@@ -75,12 +73,6 @@ const statusToneClasses = {
   amber: 'border-amber-400/25 bg-amber-400/10 text-amber-100',
   rose: 'border-rose-400/30 bg-rose-500/10 text-rose-100',
 };
-
-const weekActivityOptions: Array<{ value: WeekActivityType; label: string; icon: typeof Dumbbell }> = [
-  { value: 'workout', label: 'Treino', icon: Dumbbell },
-  { value: 'cardio', label: 'Cardio', icon: HeartPulse },
-  { value: 'rest', label: 'Descanso', icon: MoonStar },
-];
 
 const barToneClasses = {
   slate: 'bg-slate-500',
@@ -186,44 +178,6 @@ function WorkoutEditor({
   onWeekPlanChange,
   onWorkoutsChange,
 }: WorkoutEditorProps) {
-  const updateWeekItem = (dayIndex: number, changes: Partial<WeekPlanItem>) => {
-    onWeekPlanChange(weekPlan.map((item) => (item.dayIndex === dayIndex ? { ...item, ...changes } : item)));
-  };
-
-  const updateWeekActivity = (item: WeekPlanItem, activityType: WeekActivityType) => {
-    if (activityType === 'workout') {
-      const workoutId = item.workoutId || selectedWorkout.id || workouts[0].id;
-      const workout = workouts.find((candidate) => candidate.id === workoutId) ?? workouts[0];
-      updateWeekItem(item.dayIndex, {
-        activityType,
-        title: workout.title,
-        workoutId: workout.id,
-        cardio: undefined,
-        rest: undefined,
-      });
-      return;
-    }
-
-    if (activityType === 'cardio') {
-      updateWeekItem(item.dayIndex, {
-        activityType,
-        title: 'Cardio leve',
-        workoutId: undefined,
-        cardio: item.cardio || '25 a 40 min leve',
-        rest: undefined,
-      });
-      return;
-    }
-
-    updateWeekItem(item.dayIndex, {
-      activityType,
-      title: 'Descanso e recuperacao',
-      workoutId: undefined,
-      cardio: undefined,
-      rest: item.rest || 'Recuperacao e rotina leve.',
-    });
-  };
-
   const updateWorkout = (changes: Partial<WorkoutModel>) => {
     onWorkoutsChange(workouts.map((workout) => (workout.id === selectedWorkout.id ? { ...workout, ...changes } : workout)));
   };
@@ -329,8 +283,8 @@ function WorkoutEditor({
     <Card>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="section-title">Editor de treino</h2>
-          <p className="mt-1 text-sm text-slate-600">Split, exercicios, parametros e musculos-alvo.</p>
+          <h2 className="section-title">Editor de exercícios</h2>
+          <p className="mt-1 text-sm text-slate-600">Treinos, séries, parâmetros e músculos-alvo.</p>
         </div>
         <button className="secondary-button min-h-0 px-3 py-2 text-sm" type="button" onClick={addWorkout}>
           <Plus size={16} aria-hidden="true" />
@@ -365,109 +319,6 @@ function WorkoutEditor({
           <span>Foco</span>
           <textarea className="input min-h-20 resize-none" value={selectedWorkout.focus} onChange={(event) => updateWorkout({ focus: event.target.value })} />
         </label>
-      </div>
-
-      <div className="mt-5">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-extrabold uppercase tracking-wide text-slate-300">Semana configurável</h3>
-            <p className="mt-1 text-xs font-semibold text-slate-500">Escolha treino, cardio ou descanso para cada dia.</p>
-          </div>
-        </div>
-        <div className="mt-3 space-y-3">
-          {weekPlan.map((item) => {
-            const activeOption = weekActivityOptions.find((option) => option.value === item.activityType) ?? weekActivityOptions[2];
-            const ActiveIcon = activeOption.icon;
-
-            return (
-            <div className="rounded-[1.15rem] border border-white/10 bg-white/[0.035] p-3" key={item.dayIndex}>
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-300">{item.dayLabel}</p>
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[0.62rem] font-black uppercase tracking-wide ${
-                  item.activityType === 'workout'
-                    ? 'bg-lime-300/10 text-lime-200'
-                    : item.activityType === 'cardio'
-                      ? 'bg-teal-300/10 text-teal-200'
-                      : 'bg-violet-300/10 text-violet-200'
-                }`}>
-                  <ActiveIcon size={12} aria-hidden="true" /> {activeOption.label}
-                </span>
-              </div>
-              <div className="mt-2 grid gap-2">
-                <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-slate-950/45 p-1" role="group" aria-label={`Atividade de ${item.dayLabel}`}>
-                  {weekActivityOptions.map(({ value, label, icon: Icon }) => {
-                    const isActive = item.activityType === value;
-                    return (
-                      <button
-                        aria-pressed={isActive}
-                        className={`flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[0.65rem] font-extrabold transition ${
-                          isActive ? 'bg-lime-300 text-slate-950 shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-slate-200'
-                        }`}
-                        key={value}
-                        onClick={() => updateWeekActivity(item, value)}
-                        type="button"
-                      >
-                        <Icon size={15} aria-hidden="true" /> {label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <label className="grid gap-1 text-xs font-bold text-slate-400">
-                  <span>Nome do dia</span>
-                  <input
-                    className="input"
-                    value={item.title}
-                    onChange={(event) => updateWeekItem(item.dayIndex, { title: event.target.value })}
-                  />
-                </label>
-
-                {item.activityType === 'workout' ? (
-                  <label className="grid gap-1 text-xs font-bold text-slate-400">
-                    <span>Treino do dia</span>
-                    <select
-                      className="input"
-                      value={item.workoutId ?? ''}
-                      onChange={(event) => {
-                        const workout = workouts.find((candidate) => candidate.id === event.target.value);
-                        if (workout) {
-                          updateWeekItem(item.dayIndex, { workoutId: workout.id, title: workout.title });
-                        }
-                      }}
-                    >
-                      {workouts.map((workout) => (
-                        <option key={workout.id} value={workout.id}>
-                          {workout.shortTitle}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : item.activityType === 'cardio' ? (
-                  <label className="grid gap-1 text-xs font-bold text-slate-400">
-                    <span>Duração e intensidade</span>
-                    <input
-                      className="input"
-                      placeholder="Ex.: 30 min leve"
-                      value={item.cardio ?? ''}
-                      onChange={(event) => updateWeekItem(item.dayIndex, { cardio: event.target.value || undefined })}
-                    />
-                  </label>
-                ) : (
-                  <label className="grid gap-1 text-xs font-bold text-slate-400">
-                    <span>Orientação de recuperação</span>
-                  <input
-                    className="input"
-                    placeholder="Ex.: caminhada leve e mobilidade"
-                    value={item.rest ?? ''}
-                    onChange={(event) => updateWeekItem(item.dayIndex, { rest: event.target.value || undefined })}
-                  />
-                  </label>
-                )}
-              </div>
-            </div>
-            );
-          })}
-        </div>
       </div>
 
       <div className="mt-5 flex items-center justify-between gap-3">
@@ -873,7 +724,7 @@ export function Workout({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block">Gerenciar plano</span>
-            <span className="mt-0.5 block text-xs font-semibold text-slate-500">Split, exercícios e volume semanal</span>
+            <span className="mt-0.5 block text-xs font-semibold text-slate-500">Exercícios, séries e volume semanal</span>
           </span>
           <ChevronDown className="manage-chevron text-slate-500 transition" size={19} aria-hidden="true" />
         </summary>
@@ -890,7 +741,7 @@ export function Workout({
           <VolumePanel volume={weeklyVolume} />
 
           <button className="secondary-button w-full" type="button" onClick={() => setIsEditing((current) => !current)}>
-            <Pencil size={18} aria-hidden="true" /> {isEditing ? 'Fechar editor' : 'Editar rotina'}
+            <Pencil size={18} aria-hidden="true" /> {isEditing ? 'Fechar editor' : 'Editar exercícios'}
           </button>
 
           {isEditing ? (

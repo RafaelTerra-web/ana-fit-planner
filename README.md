@@ -73,14 +73,14 @@ O `netlify.toml` já configura a aplicação como SPA.
 
 ## Login e sincronização Supabase
 
-O app usa autenticação por e-mail e senha e mantém a sessão salva por padrão. Em **Ajustes**, a usuária pode optar por esquecer o login depois de 7, 30 ou 90 dias sem uso. O perfil, treinos, séries, dieta, progresso e rank ficam no `localStorage` como cache offline e na tabela `user_app_data` como cópia vinculada à conta.
+O app aceita contas individuais por e-mail e senha e mantém a sessão salva por padrão. Em **Ajustes**, cada usuário pode optar por esquecer o login depois de 7, 30 ou 90 dias sem uso. Perfil, treinos, séries, dieta, progresso e rank ficam em um cache local separado por usuário e na tabela `anfit_user_app_data` como cópia vinculada à conta.
 
 1. Crie um projeto Supabase e execute [`supabase/schema.sql`](supabase/schema.sql) no SQL Editor.
 2. Em **Authentication > URL Configuration**, defina `https://anfit.netlify.app` como Site URL e Redirect URL.
-3. Desative novos cadastros públicos em **Authentication > Providers > Email**; o app usa apenas convite administrativo.
+3. Em **Authentication > Providers > Email**, permita novos cadastros e mantenha a confirmação de e-mail habilitada. Em produção, configure também rate limit e CAPTCHA para reduzir abuso.
 4. Em **Authentication > Sessions**, mantenha Time-box e Inactivity timeout desativados; o app controla localmente a opção de 7, 30 ou 90 dias sem uso.
 5. Configure no Netlify: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
-6. Para convidar a Ana no primeiro acesso, execute localmente com `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `ANA_EMAIL` e `SUPABASE_REDIRECT_URL` no ambiente:
+6. Opcionalmente, para manter o convite administrativo da conta legada da Ana, execute localmente com `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `ANA_EMAIL` e `SUPABASE_REDIRECT_URL` no ambiente:
 
 ```bash
 npm run invite:ana
@@ -101,4 +101,4 @@ No iPhone, o app precisa estar adicionado à Tela de Início e aberto pelo ícon
 
 ## Dados locais
 
-Perfil, plano, refeições, sessões, rank e progresso são salvos no `localStorage`. A chave atual é `ana-fit-planner:data:v5`; a chave `v4` é mantida intacta como origem de migração.
+Perfil, plano, refeições, sessões, rank e progresso são salvos no `localStorage` em chaves vinculadas ao ID da conta. As chaves globais `ana-fit-planner:data:v5` e `v4` são tratadas apenas como origens legadas de migração e nunca são reivindicadas automaticamente por uma conta recém-criada no aplicativo.

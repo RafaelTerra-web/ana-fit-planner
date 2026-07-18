@@ -3,10 +3,12 @@
 create table if not exists public.anfit_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   email text not null,
-  display_name text not null default 'Ana',
+  display_name text not null default 'Atleta',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.anfit_profiles alter column display_name set default 'Atleta';
 
 create table if not exists public.anfit_user_app_data (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -80,7 +82,11 @@ begin
   values (
     new.id,
     coalesce(new.email, ''),
-    coalesce(new.raw_user_meta_data ->> 'display_name', 'Ana')
+    coalesce(
+      nullif(btrim(new.raw_user_meta_data ->> 'display_name'), ''),
+      nullif(initcap(regexp_replace(split_part(coalesce(new.email, ''), '@', 1), '[._+-]+', ' ', 'g')), ''),
+      'Atleta'
+    )
   )
   on conflict (user_id) do update
   set email = excluded.email,

@@ -60,7 +60,10 @@ function buildPayload(reminder) {
 
 async function sendDueReminders(store, blob) {
   const record = await store.get(blob.key, { type: 'json' });
-  if (!record?.subscription) {
+  if (!record?.subscription || typeof record.userId !== 'string' || !record.userId) {
+    // Records created before account isolation are deliberately discarded.
+    // The signed-in client will safely register the device for its owner again.
+    await store.delete(blob.key);
     return 0;
   }
 

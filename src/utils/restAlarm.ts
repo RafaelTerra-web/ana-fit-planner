@@ -1,4 +1,8 @@
-import { prepareRestNotifications, showRestCompleteNotification } from './notifications';
+import {
+  prepareRestNotifications,
+  sendAuthenticatedNotificationRequest,
+  showRestCompleteNotification,
+} from './notifications';
 
 const REMOTE_ALARM_GRACE_MS = 3_000;
 
@@ -80,14 +84,10 @@ export async function scheduleRemoteRestAlarm(details: RestAlarmDetails, subscri
   if (!subscriptionEndpoint || !import.meta.env.PROD) return;
 
   try {
-    await fetch('/.netlify/functions/rest-alarm-background', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...details,
-        fireAt: details.endsAt + REMOTE_ALARM_GRACE_MS,
-        subscriptionEndpoint,
-      }),
+    await sendAuthenticatedNotificationRequest('rest-alarm-background', {
+      ...details,
+      fireAt: details.endsAt + REMOTE_ALARM_GRACE_MS,
+      subscriptionEndpoint,
     });
   } catch {
     // The local timer remains the primary path while the app is visible.
@@ -98,12 +98,7 @@ export async function cancelRemoteRestAlarm(alarmId: string) {
   if (!import.meta.env.PROD) return;
 
   try {
-    await fetch('/.netlify/functions/cancel-rest-alarm', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ alarmId }),
-      keepalive: true,
-    });
+    await sendAuthenticatedNotificationRequest('cancel-rest-alarm', { alarmId }, { keepalive: true });
   } catch {
     // A duplicate is prevented locally by the notification tag when possible.
   }

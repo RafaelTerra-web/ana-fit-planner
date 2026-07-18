@@ -6,12 +6,33 @@ export type ForgetAfterDays = 7 | 30 | 90 | null;
 
 export type AuthContextValue = {
   user: User | null;
+  displayName: string | null;
   cloudEnabled: boolean;
   migrationResult: MigrationResult;
   forgetAfterDays: ForgetAfterDays;
   setForgetAfterDays: (days: ForgetAfterDays) => void;
   signOut: () => Promise<void>;
 };
+
+function metadataString(user: User, key: string) {
+  const value = user.user_metadata?.[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+export function getUserDisplayName(user: User | null) {
+  if (!user) return null;
+
+  const metadataName = metadataString(user, 'display_name') || metadataString(user, 'full_name') || metadataString(user, 'name');
+  if (metadataName) return metadataName;
+
+  const emailName = user.email?.split('@')[0].replace(/[._+-]+/g, ' ').trim();
+  if (!emailName) return 'Atleta';
+
+  return emailName
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toLocaleUpperCase('pt-BR') + part.slice(1))
+    .join(' ');
+}
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 

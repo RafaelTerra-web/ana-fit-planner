@@ -11,7 +11,7 @@ export const foods: Food[] = [
   { name: 'Pão', group: 'carbs' },
   { name: 'Farofa', group: 'carbs', note: 'Calórica, usar em pequena quantidade.' },
   { name: 'Batata palha', group: 'carbs', note: 'Usar pouco, porque sobe calorias rápido.' },
-  { name: 'Banana ou fruta opcional', group: 'carbs', note: 'Opcional, se ela aceitar.' },
+  { name: 'Banana ou fruta opcional', group: 'carbs', note: 'Opcional, se quiser.' },
   { name: 'Azeite opcional', group: 'fats' },
   { name: 'Queijo', group: 'fats' },
   { name: 'Ovo', group: 'fats' },

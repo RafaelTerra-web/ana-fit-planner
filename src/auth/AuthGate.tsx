@@ -1,13 +1,18 @@
 import type { User } from '@supabase/supabase-js';
-import { Activity, CheckCircle2, Cloud, Dumbbell, Eye, EyeOff, LoaderCircle, LockKeyhole, LogIn, Mail, ShieldCheck, Sparkles, Trophy } from 'lucide-react';
+import { Activity, CheckCircle2, Cloud, Dumbbell, Eye, EyeOff, LoaderCircle, LockKeyhole, LogIn, Mail, ShieldCheck, Sparkles, Trophy, UserPlus, UserRound } from 'lucide-react';
 import { type FormEvent, type PropsWithChildren, useEffect, useState } from 'react';
-import { AuthContext, type ForgetAfterDays, type MigrationResult } from './authContext';
+import { AuthContext, getUserDisplayName, type ForgetAfterDays, type MigrationResult } from './authContext';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { detachPushSubscriptionForCurrentUser } from '../utils/notifications';
 import {
   APP_STORAGE_KEY,
+  clearSharedStoredAppData,
   clearCloudPendingMarker,
   CLOUD_OWNER_STORAGE_KEY,
+  getUserAppStorageKey,
+  LEGACY_APP_STORAGE_KEY,
   preserveDataFromAnotherAccount,
+  preserveUnclaimedStoredData,
   readCloudPendingMarker,
   readStoredAppData,
   writeStoredAppData,
@@ -16,19 +21,45 @@ import {
 const FORGET_AFTER_STORAGE_KEY = 'ana-fit-planner:forget-after-days:v1';
 const LAST_ACTIVITY_STORAGE_KEY = 'ana-fit-planner:last-activity:v1';
 
-function readForgetAfterDays(): ForgetAfterDays {
-  const value = window.localStorage.getItem(FORGET_AFTER_STORAGE_KEY);
+function accountSettingKey(key: string, userId?: string) {
+  return userId ? `${key}:user:${userId}` : key;
+}
+
+function readAccountSetting(key: string, userId?: string, includeSharedValue = true) {
+  const scopedValue = window.localStorage.getItem(accountSettingKey(key, userId));
+  if (scopedValue !== null || !userId || !includeSharedValue) return scopedValue;
+
+  const activeOwner = window.localStorage.getItem(CLOUD_OWNER_STORAGE_KEY);
+  return !activeOwner || activeOwner === userId ? window.localStorage.getItem(key) : null;
+}
+
+function readForgetAfterDays(userId?: string, includeSharedValue = true): ForgetAfterDays {
+  const value = readAccountSetting(FORGET_AFTER_STORAGE_KEY, userId, includeSharedValue);
   return value === '7' || value === '30' || value === '90' ? Number(value) as 7 | 30 | 90 : null;
 }
 
-function sessionExpired() {
-  const days = readForgetAfterDays();
-  const lastActivity = Number(window.localStorage.getItem(LAST_ACTIVITY_STORAGE_KEY));
+function sessionExpired(user: User) {
+  const includeSharedValue = user.user_metadata?.created_via_anfit_signup !== true;
+  const days = readForgetAfterDays(user.id, includeSharedValue);
+  const lastActivity = Number(readAccountSetting(LAST_ACTIVITY_STORAGE_KEY, user.id, includeSharedValue));
   return Boolean(days && lastActivity && Date.now() - lastActivity > days * 24 * 60 * 60 * 1_000);
 }
 
-function recordActivity() {
-  window.localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, String(Date.now()));
+function recordActivity(userId?: string) {
+  window.localStorage.setItem(accountSettingKey(LAST_ACTIVITY_STORAGE_KEY, userId), String(Date.now()));
+}
+
+function moveSharedAccountSettings(ownerId?: string) {
+  for (const key of [FORGET_AFTER_STORAGE_KEY, LAST_ACTIVITY_STORAGE_KEY]) {
+    const value = window.localStorage.getItem(key);
+    if (value !== null && ownerId) {
+      const scopedKey = accountSettingKey(key, ownerId);
+      if (window.localStorage.getItem(scopedKey) === null) {
+        window.localStorage.setItem(scopedKey, value);
+      }
+    }
+    window.localStorage.removeItem(key);
+  }
 }
 
 function AuthShell({ children }: PropsWithChildren) {
@@ -127,12 +158,26 @@ function PasswordField({
   );
 }
 
+type AuthFormMode = 'login' | 'signup' | 'reset';
+
 function LoginScreen() {
-  const [email, setEmail] = useState('aakiraap@gmail.com');
+  const [mode, setMode] = useState<AuthFormMode>('login');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [resetMode, setResetMode] = useState(false);
+
+  const resetMode = mode === 'reset';
+  const signupMode = mode === 'signup';
+
+  const changeMode = (nextMode: AuthFormMode) => {
+    setMode(nextMode);
+    setPassword('');
+    setConfirmation('');
+    setMessage('');
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -142,7 +187,7 @@ function LoginScreen() {
     setMessage('');
 
     if (resetMode) {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: window.location.origin,
       });
       setBusy(false);
@@ -150,7 +195,49 @@ function LoginScreen() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (signupMode) {
+      const displayName = name.trim().replace(/\s+/g, ' ');
+      if (displayName.length < 2) {
+        setBusy(false);
+        setMessage('Informe seu nome para personalizar o aplicativo.');
+        return;
+      }
+      if (password.length < 8) {
+        setBusy(false);
+        setMessage('Crie uma senha com pelo menos 8 caracteres.');
+        return;
+      }
+      if (password !== confirmation) {
+        setBusy(false);
+        setMessage('As senhas não coincidem.');
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            display_name: displayName,
+            force_password_change: false,
+            created_via_anfit_signup: true,
+          },
+          emailRedirectTo: window.location.origin,
+        },
+      });
+      setBusy(false);
+
+      if (error) {
+        setMessage('Não foi possível criar a conta. Confira os dados ou tente entrar com este e-mail.');
+      } else if (!data.session) {
+        setPassword('');
+        setConfirmation('');
+        setMessage('Conta criada. Confirme seu e-mail para entrar no aplicativo.');
+      }
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
     if (error) {
       setMessage('E-mail ou senha incorretos. Tente novamente.');
@@ -159,13 +246,40 @@ function LoginScreen() {
 
   return (
     <AuthShell>
-      <span className="auth-panel-kicker">{resetMode ? <Mail size={14} aria-hidden="true" /> : <LogIn size={14} aria-hidden="true" />} {resetMode ? 'Recuperação segura' : 'Área da atleta'}</span>
-      <h1 className="auth-panel-title">{resetMode ? 'Recupere seu acesso' : 'Bem-vinda de volta, Ana'}</h1>
+      <span className="auth-panel-kicker">
+        {resetMode ? <Mail size={14} aria-hidden="true" /> : signupMode ? <UserPlus size={14} aria-hidden="true" /> : <LogIn size={14} aria-hidden="true" />}
+        {resetMode ? 'Recuperação segura' : signupMode ? 'Novo perfil' : 'Seu espaço'}
+      </span>
+      <h1 className="auth-panel-title">{resetMode ? 'Recupere seu acesso' : signupMode ? 'Crie sua conta' : 'Que bom ter você de volta'}</h1>
       <p className="auth-panel-description">
-        {resetMode ? 'Enviaremos um link seguro para você escolher outra senha.' : 'Entre para continuar exatamente de onde parou.'}
+        {resetMode
+          ? 'Enviaremos um link seguro para você escolher outra senha.'
+          : signupMode
+            ? 'Tenha seus treinos e sua evolução protegidos em um perfil individual.'
+            : 'Entre para continuar exatamente de onde parou.'}
       </p>
 
       <form className="auth-form" onSubmit={handleSubmit}>
+        {signupMode ? (
+          <label className="auth-field" htmlFor="signup-name">
+            <span>Como podemos chamar você?</span>
+            <span className="auth-input-wrap">
+              <UserRound className="auth-input-icon" size={18} aria-hidden="true" />
+              <input
+                className="input auth-input pl-10"
+                style={{ paddingLeft: '2.5rem' }}
+                id="signup-name"
+                type="text"
+                autoComplete="name"
+                placeholder="Seu nome"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                minLength={2}
+                required
+              />
+            </span>
+          </label>
+        ) : null}
         <label className="auth-field" htmlFor="login-email">
           <span>E-mail</span>
           <span className="auth-input-wrap">
@@ -185,18 +299,32 @@ function LoginScreen() {
           </span>
         </label>
         {!resetMode ? (
-          <PasswordField id="login-password" label="Senha" value={password} onChange={setPassword} autoComplete="current-password" />
+          <PasswordField
+            id="login-password"
+            label={signupMode ? 'Crie uma senha' : 'Senha'}
+            value={password}
+            onChange={setPassword}
+            autoComplete={signupMode ? 'new-password' : 'current-password'}
+          />
+        ) : null}
+        {signupMode ? (
+          <PasswordField id="signup-confirm-password" label="Confirme a senha" value={confirmation} onChange={setConfirmation} autoComplete="new-password" />
         ) : null}
         {message ? <p className="auth-message" role="status">{message}</p> : null}
         <button className="primary-button auth-submit w-full" type="submit" disabled={busy}>
-          {busy ? <LoaderCircle className="animate-spin" size={19} aria-hidden="true" /> : resetMode ? <Mail size={19} aria-hidden="true" /> : <LogIn size={19} aria-hidden="true" />}
-          {busy ? 'Aguarde...' : resetMode ? 'Enviar link seguro' : 'Entrar no Ana Fit'}
+          {busy ? <LoaderCircle className="animate-spin" size={19} aria-hidden="true" /> : resetMode ? <Mail size={19} aria-hidden="true" /> : signupMode ? <UserPlus size={19} aria-hidden="true" /> : <LogIn size={19} aria-hidden="true" />}
+          {busy ? 'Aguarde...' : resetMode ? 'Enviar link seguro' : signupMode ? 'Criar minha conta' : 'Entrar no Ana Fit'}
         </button>
       </form>
 
-      <button className="auth-link-button" type="button" onClick={() => { setResetMode((current) => !current); setMessage(''); }}>
-        {resetMode ? 'Voltar para o login' : 'Esqueci minha senha'}
-      </button>
+      {mode === 'login' ? (
+        <>
+          <button className="auth-link-button" type="button" onClick={() => changeMode('reset')}>Esqueci minha senha</button>
+          <button className="auth-link-button" type="button" onClick={() => changeMode('signup')}>Ainda não tenho conta · Criar conta</button>
+        </>
+      ) : (
+        <button className="auth-link-button" type="button" onClick={() => changeMode('login')}>Voltar para o login</button>
+      )}
     </AuthShell>
   );
 }
@@ -222,9 +350,10 @@ function SetPasswordScreen({ user, onComplete }: { user: User; onComplete: (user
 
     setBusy(true);
     setMessage('');
+    const displayName = getUserDisplayName(user) ?? 'Atleta';
     const { data, error } = await supabase.auth.updateUser({
       password,
-      data: { ...user.user_metadata, force_password_change: false, display_name: user.user_metadata.display_name ?? 'Ana' },
+      data: { ...user.user_metadata, force_password_change: false, display_name: displayName },
     });
     setBusy(false);
 
@@ -263,52 +392,107 @@ function SetPasswordScreen({ user, onComplete }: { user: User; onComplete: (user
   );
 }
 
-async function prepareUserData(userId: string): Promise<MigrationResult> {
+function withUserProfileName(data: unknown, user: User) {
+  const displayName = getUserDisplayName(user) ?? 'Atleta';
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { schemaVersion: 5, profile: { name: displayName } };
+  }
+
+  const appData = data as Record<string, unknown>;
+  const storedProfile = appData.profile;
+  const profile = storedProfile && typeof storedProfile === 'object' && !Array.isArray(storedProfile)
+    ? storedProfile as Record<string, unknown>
+    : {};
+  const storedName = typeof profile.name === 'string' ? profile.name.trim() : '';
+
+  return storedName
+    ? data
+    : { ...appData, profile: { ...profile, name: displayName } };
+}
+
+async function uploadUserData(userId: string, data: unknown) {
   if (!supabase) throw new Error('Supabase is not configured.');
+  const { error } = await supabase.from('anfit_user_app_data').upsert({ user_id: userId, data });
+  if (error) throw error;
+}
+
+async function assertActiveUser(userId: string) {
+  if (!supabase) throw new Error('Supabase is not configured.');
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  if (data.user?.id !== userId) throw new Error('Authentication changed while preparing local data.');
+}
+
+async function prepareUserData(user: User): Promise<MigrationResult> {
+  if (!supabase) throw new Error('Supabase is not configured.');
+
+  const userId = user.id;
 
   const { data: remoteRow, error } = await supabase.from('anfit_user_app_data').select('data').eq('user_id', userId).maybeSingle();
   if (error) throw error;
+  await assertActiveUser(userId);
 
   const previousOwner = window.localStorage.getItem(CLOUD_OWNER_STORAGE_KEY);
+  const accountWasCreatedInApp = user.user_metadata?.created_via_anfit_signup === true;
   if (previousOwner && previousOwner !== userId) {
+    moveSharedAccountSettings(previousOwner);
     preserveDataFromAnotherAccount(previousOwner);
+  } else {
+    moveSharedAccountSettings(accountWasCreatedInApp ? undefined : userId);
   }
 
-  const localCopy = readStoredAppData();
-  const pendingMarker = readCloudPendingMarker();
+  const mayClaimSharedCopy = !accountWasCreatedInApp && (!previousOwner || previousOwner === userId);
+  const localCopy = readStoredAppData(userId, mayClaimSharedCopy);
+  const pendingMarker = readCloudPendingMarker(userId);
+  const scopedStorageKey = getUserAppStorageKey(userId);
+
+  const finishPreparation = async (data: unknown, source?: string) => {
+    await assertActiveUser(userId);
+    writeStoredAppData(data, userId);
+    if (source === APP_STORAGE_KEY || source === LEGACY_APP_STORAGE_KEY) {
+      clearSharedStoredAppData();
+    }
+    window.localStorage.setItem(CLOUD_OWNER_STORAGE_KEY, userId);
+    try {
+      await assertActiveUser(userId);
+    } catch (error) {
+      if (window.localStorage.getItem(CLOUD_OWNER_STORAGE_KEY) === userId) {
+        window.localStorage.removeItem(CLOUD_OWNER_STORAGE_KEY);
+      }
+      throw error;
+    }
+  };
 
   if (pendingMarker?.ownerId === userId && localCopy) {
-    const { error: pendingUploadError } = await supabase.from('anfit_user_app_data').upsert({ user_id: userId, data: localCopy.data });
-    if (pendingUploadError) throw pendingUploadError;
-
-    if (localCopy.source !== APP_STORAGE_KEY) {
-      writeStoredAppData(localCopy.data);
-    }
-    clearCloudPendingMarker(pendingMarker.version);
-    window.localStorage.setItem(CLOUD_OWNER_STORAGE_KEY, userId);
+    const preparedData = withUserProfileName(localCopy.data, user);
+    await uploadUserData(userId, preparedData);
+    await finishPreparation(preparedData, localCopy.source);
+    clearCloudPendingMarker(pendingMarker.version, userId);
     return 'uploaded';
   }
 
   if (remoteRow?.data) {
-    writeStoredAppData(remoteRow.data);
-    clearCloudPendingMarker();
-    window.localStorage.setItem(CLOUD_OWNER_STORAGE_KEY, userId);
+    const preparedData = withUserProfileName(remoteRow.data, user);
+    await finishPreparation(preparedData);
+    if (!previousOwner && readStoredAppData()) preserveUnclaimedStoredData();
+    if (previousOwner === userId) clearSharedStoredAppData();
+    clearCloudPendingMarker(undefined, userId);
     return 'downloaded';
   }
 
   if (localCopy) {
-    const { error: uploadError } = await supabase.from('anfit_user_app_data').upsert({ user_id: userId, data: localCopy.data });
-    if (uploadError) throw uploadError;
-
-    if (localCopy.source !== APP_STORAGE_KEY) {
-      writeStoredAppData(localCopy.data);
-    }
-    clearCloudPendingMarker();
-    window.localStorage.setItem(CLOUD_OWNER_STORAGE_KEY, userId);
+    const preparedData = withUserProfileName(localCopy.data, user);
+    await uploadUserData(userId, preparedData);
+    await finishPreparation(preparedData, localCopy.source === scopedStorageKey ? undefined : localCopy.source);
+    clearCloudPendingMarker(undefined, userId);
     return 'uploaded';
   }
 
-  window.localStorage.setItem(CLOUD_OWNER_STORAGE_KEY, userId);
+  if (!previousOwner && readStoredAppData()) preserveUnclaimedStoredData();
+  const initialData = withUserProfileName(null, user);
+  await uploadUserData(userId, initialData);
+  await finishPreparation(initialData);
+  clearCloudPendingMarker(undefined, userId);
   return 'empty';
 }
 
@@ -326,22 +510,25 @@ export function AuthGate({ children }: PropsWithChildren) {
     const routeUser = (nextUser: User | null, recovery = false) => {
       if (!active) return;
 
-      if (nextUser && sessionExpired()) {
-        window.localStorage.removeItem(LAST_ACTIVITY_STORAGE_KEY);
-        void client.auth.signOut({ scope: 'local' });
+      if (nextUser && sessionExpired(nextUser)) {
+        window.localStorage.removeItem(accountSettingKey(LAST_ACTIVITY_STORAGE_KEY, nextUser.id));
+        void detachPushSubscriptionForCurrentUser()
+          .catch(() => false)
+          .finally(() => client.auth.signOut({ scope: 'local' }));
         setUser(null);
         setStage('login');
         return;
       }
 
       setUser(nextUser);
+      setForgetAfterDaysState(readForgetAfterDays(nextUser?.id, nextUser?.user_metadata?.created_via_anfit_signup !== true));
       if (!nextUser) {
         setStage('login');
       } else if (recovery || nextUser.user_metadata.force_password_change === true) {
-        recordActivity();
+        recordActivity(nextUser.id);
         setStage('password');
       } else {
-        recordActivity();
+        recordActivity(nextUser.id);
         setStage('preparing');
       }
     };
@@ -364,14 +551,16 @@ export function AuthGate({ children }: PropsWithChildren) {
     let lastRecordedAt = 0;
 
     const handleActivity = () => {
-      if (sessionExpired()) {
-        void client.auth.signOut({ scope: 'local' });
+      if (sessionExpired(user)) {
+        void detachPushSubscriptionForCurrentUser()
+          .catch(() => false)
+          .finally(() => client.auth.signOut({ scope: 'local' }));
         return;
       }
 
       if (Date.now() - lastRecordedAt > 60_000) {
         lastRecordedAt = Date.now();
-        recordActivity();
+        recordActivity(user.id);
       }
     };
 
@@ -395,7 +584,7 @@ export function AuthGate({ children }: PropsWithChildren) {
     if (stage !== 'preparing' || !user) return;
     let active = true;
 
-    prepareUserData(user.id)
+    prepareUserData(user)
       .then((result) => {
         if (!active) return;
         setMigrationResult(result);
@@ -411,19 +600,32 @@ export function AuthGate({ children }: PropsWithChildren) {
   }, [stage, user]);
 
   if (!isSupabaseConfigured) {
+    if (!import.meta.env.DEV) {
+      return (
+        <AuthShell>
+          <Cloud className="text-rose-300" size={30} aria-hidden="true" />
+          <h1 className="mt-4 text-2xl font-black text-white">Acesso temporariamente indisponível</h1>
+          <p className="mt-2 text-sm leading-relaxed text-slate-400">
+            A conexão segura não foi configurada. Seus dados locais permanecem bloqueados neste aparelho.
+          </p>
+        </AuthShell>
+      );
+    }
+
     return (
       <AuthContext.Provider
         value={{
           user: null,
+          displayName: null,
           cloudEnabled: false,
           migrationResult: 'empty',
           forgetAfterDays,
           setForgetAfterDays: (days) => {
             setForgetAfterDaysState(days);
             if (days) {
-              window.localStorage.setItem(FORGET_AFTER_STORAGE_KEY, String(days));
+              window.localStorage.setItem(accountSettingKey(FORGET_AFTER_STORAGE_KEY), String(days));
             } else {
-              window.localStorage.removeItem(FORGET_AFTER_STORAGE_KEY);
+              window.localStorage.removeItem(accountSettingKey(FORGET_AFTER_STORAGE_KEY));
             }
           },
           signOut: async () => undefined,
@@ -452,19 +654,21 @@ export function AuthGate({ children }: PropsWithChildren) {
     <AuthContext.Provider
       value={{
         user,
+        displayName: getUserDisplayName(user),
         cloudEnabled: true,
         migrationResult,
         forgetAfterDays,
         setForgetAfterDays: (days) => {
           setForgetAfterDaysState(days);
           if (days) {
-            window.localStorage.setItem(FORGET_AFTER_STORAGE_KEY, String(days));
+            window.localStorage.setItem(accountSettingKey(FORGET_AFTER_STORAGE_KEY, user.id), String(days));
           } else {
-            window.localStorage.removeItem(FORGET_AFTER_STORAGE_KEY);
+            window.localStorage.removeItem(accountSettingKey(FORGET_AFTER_STORAGE_KEY, user.id));
           }
-          recordActivity();
+          recordActivity(user.id);
         },
         signOut: async () => {
+          await detachPushSubscriptionForCurrentUser().catch(() => false);
           if (supabase) await supabase.auth.signOut({ scope: 'local' });
         },
       }}

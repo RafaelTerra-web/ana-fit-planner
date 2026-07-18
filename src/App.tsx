@@ -25,7 +25,7 @@ import type {
   Workout as WorkoutPlan,
 } from './types';
 import { calculateDynamicGoals, calculateMealPlan } from './utils/dietCalculator';
-import { createDefaultNotificationSettings } from './utils/notifications';
+import { createDefaultNotificationSettings, syncPushSubscriptionForCurrentUser } from './utils/notifications';
 import {
   applyRankInactivityDecay,
   claimRankEvent,
@@ -63,11 +63,11 @@ function createDailyChecks(meals: Meal[]): DailyChecks {
   };
 }
 
-function createInitialData(): AppData {
+function createInitialData(profileName = defaultProfile.name): AppData {
   const dateKey = getLocalDateKey();
   return {
     schemaVersion: 5,
-    profile: defaultProfile,
+    profile: { ...defaultProfile, name: profileName },
     goals: defaultGoals,
     meals: defaultMeals,
     notifications: createDefaultNotificationSettings(),
@@ -201,6 +201,16 @@ function App() {
   const cloudSync = useCloudSync(data);
   const todayPlan = getTodayPlan(data.weekPlan);
   const todayChecks = normalizeDailyChecks(data.dailyChecks[dateKey], data.meals);
+
+  useEffect(() => {
+    if (!notifications.enabled || notifications.permission !== 'granted') return;
+
+    const timer = window.setTimeout(() => {
+      void syncPushSubscriptionForCurrentUser(notifications).catch(() => false);
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [notifications]);
 
   useEffect(() => {
     const storedRank = isRecord(storedData) ? storedData.rank : undefined;
@@ -599,7 +609,7 @@ function App() {
   const resetData = () => {
     const confirmed = window.confirm('Reiniciar todos os dados locais, sessões e rank do Ana Fit Planner?');
     if (confirmed) {
-      const initialData = createInitialData();
+      const initialData = createInitialData(data.profile.name);
       lastObservedCelebrationRef.current = initialData.rank.lastCelebratedLevelId;
       pendingRankCelebrationRef.current = null;
       setRankCelebration(null);
@@ -645,6 +655,7 @@ function App() {
             onProfileChange={updateProfile}
             onGoalsChange={updateGoals}
             onNotificationsChange={updateNotifications}
+            onWeekPlanChange={updateWeekPlan}
             onResetData={resetData}
             cloudSync={cloudSync}
           />

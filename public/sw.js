@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ana-fit-planner-v8';
+const CACHE_NAME = 'ana-fit-planner-v9';
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/favicon.svg?v=2',
@@ -65,6 +65,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') {
+    return;
+  }
+
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin || requestUrl.pathname.startsWith('/.netlify/functions/')) {
     return;
   }
 
