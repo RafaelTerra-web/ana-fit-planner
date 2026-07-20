@@ -116,6 +116,18 @@ begin
     new.data := new.data - 'meals';
   end if;
 
+  -- Portion adjustments are user-owned, but an older cached client will not
+  -- send this field at all. Preserve an existing adjustment in that case while
+  -- still allowing current clients to update it (including resetting it to {}).
+  if old.data ? 'mealPortionOverrides' and not (new.data ? 'mealPortionOverrides') then
+    new.data := pg_catalog.jsonb_set(
+      new.data,
+      '{mealPortionOverrides}',
+      old.data -> 'mealPortionOverrides',
+      true
+    );
+  end if;
+
   previous_profile := case
     when pg_catalog.jsonb_typeof(old.data -> 'profile') = 'object' then old.data -> 'profile'
     else '{}'::jsonb

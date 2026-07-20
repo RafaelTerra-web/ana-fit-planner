@@ -83,6 +83,15 @@ export type MealOption = {
   note?: string;
 };
 
+export type MealPortion = {
+  itemId: string;
+  label: string;
+  quantity?: number;
+  unit?: string;
+};
+
+export type MealPortionOverrides = Record<string, MealPortion[]>;
+
 export type MealDayApplicability = 'training' | 'rest' | 'both';
 
 export type Meal = {
@@ -279,6 +288,7 @@ export type AppData = {
   profile: Profile;
   goals: Goals;
   meals: Meal[];
+  mealPortionOverrides?: MealPortionOverrides;
   assignedNutritionPlan?: AssignedNutritionPlan;
   notifications: NotificationSettings;
   workouts: Workout[];

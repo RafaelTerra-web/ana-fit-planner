@@ -6,7 +6,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { getInitialPlanRules } from '../data/dietPlan';
 import { getFoodsForProfile } from '../data/foods';
 import { getTodayPlan } from '../data/workoutPlan';
-import type { AppData, DailyChecks, FitnessObjective } from '../types';
+import type { AppData, DailyChecks, FitnessObjective, MealPortion } from '../types';
 import { getFitnessObjective } from '../utils/dietCalculator';
 import { getActiveMealDay, getApplicableMeals, getRequiredMeals, mealMacro } from '../utils/meals';
 import { getDietSuggestions } from '../utils/progressRules';
@@ -15,6 +15,7 @@ type DietProps = {
   data: AppData;
   todayChecks: DailyChecks;
   onToggleMeal: (mealId: string) => void;
+  onPortionsChange: (portionKey: string, portions: MealPortion[]) => void;
 };
 
 const foodLabels = {
@@ -30,7 +31,7 @@ const objectiveLabels: Record<FitnessObjective, string> = {
   performance: 'Performance',
 };
 
-export function Diet({ data, todayChecks, onToggleMeal }: DietProps) {
+export function Diet({ data, todayChecks, onToggleMeal, onPortionsChange }: DietProps) {
   const assignedPlan = data.assignedNutritionPlan;
   const flexiblePlan = assignedPlan?.mealStrategy === 'flexible';
   const activeMealDay = getActiveMealDay(getTodayPlan(data.weekPlan).activityType);
@@ -151,6 +152,8 @@ export function Diet({ data, todayChecks, onToggleMeal }: DietProps) {
             done={Boolean(todayChecks.meals[meal.id])}
             showMacros={!flexiblePlan}
             onToggle={() => onToggleMeal(meal.id)}
+            portionOverrides={data.mealPortionOverrides}
+            onPortionsChange={onPortionsChange}
           />
         ))}
       </section>

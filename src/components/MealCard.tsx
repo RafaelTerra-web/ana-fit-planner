@@ -1,5 +1,14 @@
-import { Check, Utensils } from 'lucide-react';
-import type { Meal } from '../types';
+import { Check, PencilLine, RotateCcw, SlidersHorizontal, Utensils } from 'lucide-react';
+import { useState } from 'react';
+import type { Meal, MealPortion, MealPortionOverrides } from '../types';
+import {
+  formatMealPortion,
+  getMealPortionKey,
+  getMealPortions,
+  hasPortionChanges,
+  isMealPortionChanged,
+  portionUnits,
+} from '../utils/mealPortions';
 import { normalizeMealDayApplicability } from '../utils/meals';
 import { Card } from './Card';
 
@@ -8,15 +17,130 @@ type MealCardProps = {
   done?: boolean;
   editable?: boolean;
   showMacros?: boolean;
+  portionOverrides?: MealPortionOverrides;
   onToggle?: () => void;
   onChange?: (meal: Meal) => void;
+  onPortionsChange?: (portionKey: string, portions: MealPortion[]) => void;
 };
 
-export function MealCard({ meal, done = false, editable = false, showMacros = true, onToggle, onChange }: MealCardProps) {
+function portionUnitLabel(unit: string, quantity?: number) {
+  if (unit !== 'unidade') return unit;
+  return quantity && quantity > 1 ? 'unidades' : 'unidade';
+}
+
+function PortionEditor({
+  items,
+  portionKey,
+  overrides,
+  onChange,
+}: {
+  items: string[];
+  portionKey: string;
+  overrides?: MealPortion[];
+  onChange: (portionKey: string, portions: MealPortion[]) => void;
+}) {
+  const portions = getMealPortions(items, overrides);
+
+  const updatePortion = (itemId: string, changes: Partial<MealPortion>) => {
+    const initial = portions.find((portion) => portion.itemId === itemId);
+    if (!initial) return;
+    const currentOverride = overrides?.find((portion) => portion.itemId === itemId);
+    const nextPortion = { ...(currentOverride ?? initial), ...changes };
+    onChange(
+      portionKey,
+      [...(overrides ?? []).filter((portion) => portion.itemId !== itemId), nextPortion],
+    );
+  };
+
+  return (
+    <div className="mt-3 space-y-2 rounded-2xl border border-lime-300/20 bg-lime-300/[0.05] p-3">
+      <p className="text-xs font-bold leading-relaxed text-lime-100">
+        Ajuste a porção que funciona para você. As estimativas nutricionais não são recalculadas por esta edição.
+      </p>
+      {portions.map((portion) => (
+        <div className="rounded-xl border border-white/10 bg-slate-950/45 p-2.5" key={portion.itemId}>
+          <input
+            aria-label={`Alimento ${Number(portion.itemId) + 1}`}
+            className="input mb-2"
+            value={portion.label}
+            onChange={(event) => updatePortion(portion.itemId, { label: event.target.value })}
+          />
+          <div className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.5fr)] gap-2">
+            <label className="space-y-1 text-xs font-bold text-slate-300">
+              <span>Quantidade</span>
+              <input
+                aria-label={`Quantidade de ${portion.label || `alimento ${Number(portion.itemId) + 1}`}`}
+                className="input"
+                inputMode="decimal"
+                min="0"
+                step="0.5"
+                type="number"
+                value={portion.quantity ?? ''}
+                onChange={(event) => {
+                  const nextQuantity = Number(event.target.value);
+                  updatePortion(portion.itemId, {
+                    quantity: Number.isFinite(nextQuantity) && nextQuantity > 0 ? nextQuantity : undefined,
+                  });
+                }}
+              />
+            </label>
+            <label className="space-y-1 text-xs font-bold text-slate-300">
+              <span>Unidade</span>
+              <select
+                aria-label={`Unidade de ${portion.label || `alimento ${Number(portion.itemId) + 1}`}`}
+                className="input"
+                value={portion.unit ?? 'unidade'}
+                onChange={(event) => updatePortion(portion.itemId, { unit: event.target.value })}
+              >
+                {portionUnits.map((unit) => (
+                  <option key={unit} value={unit}>{portionUnitLabel(unit, portion.quantity)}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function MealCard({
+  meal,
+  done = false,
+  editable = false,
+  showMacros = true,
+  portionOverrides,
+  onToggle,
+  onChange,
+  onPortionsChange,
+}: MealCardProps) {
+  const [editingPortions, setEditingPortions] = useState(false);
   const applicability = normalizeMealDayApplicability(meal.appliesTo);
   const applicabilityLabel = applicability === 'training' ? 'Só em treino' : applicability === 'rest' ? 'Só em descanso' : null;
+  const primaryPortionKey = getMealPortionKey(meal.id);
+  const primaryOverrides = portionOverrides?.[primaryPortionKey];
+  const primaryIsCustomized = hasPortionChanges(meal.items, primaryOverrides);
   const updateMeal = (changes: Partial<Meal>) => {
     onChange?.({ ...meal, ...changes });
+  };
+
+  const renderPortionList = (items: string[], portionKey: string, tone: 'rose' | 'teal') => {
+    const portions = getMealPortions(items, portionOverrides?.[portionKey]);
+    const overridesById = new Map((portionOverrides?.[portionKey] ?? []).map((portion) => [portion.itemId, portion]));
+    const isCustomized = hasPortionChanges(items, portionOverrides?.[portionKey]);
+    const dotClass = tone === 'rose' ? 'bg-rose-500' : 'bg-teal-300';
+
+    return items.length > 0 ? (
+      <ul className="mt-3 space-y-2 text-sm leading-relaxed text-slate-700">
+        {portions.map((portion, index) => (
+          <li className="flex gap-2" key={`${portion.itemId}:${items[index]}`}>
+            <span className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${dotClass}`} />
+            <span>{isMealPortionChanged(items[index], overridesById.get(portion.itemId)) ? formatMealPortion(portion, items[index]) : items[index]}</span>
+          </li>
+        ))}
+        {isCustomized ? <li className="pl-3.5 text-xs font-semibold text-lime-200">Porção personalizada</li> : null}
+      </ul>
+    ) : null;
   };
 
   return (
@@ -39,19 +163,37 @@ export function MealCard({ meal, done = false, editable = false, showMacros = tr
           </div>
           <p className="mt-1 text-sm text-slate-500">{meal.time}</p>
         </div>
-        {onToggle ? (
-          <button
-            type="button"
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition ${
-              done ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-500'
-            }`}
-            onClick={onToggle}
-            aria-label={`${done ? 'Desmarcar' : 'Marcar'} refeição${meal.optional ? ' opcional' : ''}`}
-            title={done ? 'Desmarcar refeição' : 'Marcar refeição'}
-          >
-            <Check size={19} aria-hidden="true" />
-          </button>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-2">
+          {onPortionsChange && (meal.items.length > 0 || meal.options?.some((option) => option.items.length > 0)) ? (
+            <button
+              aria-expanded={editingPortions}
+              className={`flex h-10 w-10 items-center justify-center rounded-lg border transition ${
+                editingPortions || primaryIsCustomized
+                  ? 'border-lime-300/45 bg-lime-300/15 text-lime-100'
+                  : 'border-white/10 bg-white/[0.04] text-slate-300'
+              }`}
+              onClick={() => setEditingPortions((current) => !current)}
+              title="Ajustar quantidades"
+              type="button"
+            >
+              <SlidersHorizontal size={18} aria-hidden="true" />
+              <span className="sr-only">Ajustar quantidades</span>
+            </button>
+          ) : null}
+          {onToggle ? (
+            <button
+              type="button"
+              className={`flex h-10 w-10 items-center justify-center rounded-lg border transition ${
+                done ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-500'
+              }`}
+              onClick={onToggle}
+              aria-label={`${done ? 'Desmarcar' : 'Marcar'} refeição${meal.optional ? ' opcional' : ''}`}
+              title={done ? 'Desmarcar refeição' : 'Marcar refeição'}
+            >
+              <Check size={19} aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {editable ? (
@@ -74,72 +216,61 @@ export function MealCard({ meal, done = false, editable = false, showMacros = tr
           <div className="grid grid-cols-2 gap-2">
             <label className="space-y-1 text-sm font-medium text-slate-700">
               <span>Calorias</span>
-              <input
-                className="input"
-                inputMode="numeric"
-                value={meal.calories}
-                onChange={(event) => updateMeal({ calories: Number(event.target.value) || 0 })}
-              />
+              <input className="input" inputMode="numeric" value={meal.calories} onChange={(event) => updateMeal({ calories: Number(event.target.value) || 0 })} />
             </label>
             <label className="space-y-1 text-sm font-medium text-slate-700">
               <span>Proteína</span>
-              <input
-                className="input"
-                inputMode="numeric"
-                value={meal.protein}
-                onChange={(event) => updateMeal({ protein: Number(event.target.value) || 0 })}
-              />
+              <input className="input" inputMode="numeric" value={meal.protein} onChange={(event) => updateMeal({ protein: Number(event.target.value) || 0 })} />
             </label>
             <label className="space-y-1 text-sm font-medium text-slate-700">
               <span>Carboidratos</span>
-              <input
-                className="input"
-                inputMode="numeric"
-                value={meal.carbs}
-                onChange={(event) => updateMeal({ carbs: Number(event.target.value) || 0 })}
-              />
+              <input className="input" inputMode="numeric" value={meal.carbs} onChange={(event) => updateMeal({ carbs: Number(event.target.value) || 0 })} />
             </label>
             <label className="space-y-1 text-sm font-medium text-slate-700">
               <span>Gorduras</span>
-              <input
-                className="input"
-                inputMode="numeric"
-                value={meal.fat}
-                onChange={(event) => updateMeal({ fat: Number(event.target.value) || 0 })}
-              />
+              <input className="input" inputMode="numeric" value={meal.fat} onChange={(event) => updateMeal({ fat: Number(event.target.value) || 0 })} />
             </label>
           </div>
         </div>
       ) : (
         <>
-          {meal.items.length > 0 ? (
-            <ul className="mt-4 space-y-2 text-sm leading-relaxed text-slate-700">
-              {meal.items.map((item) => (
-                <li className="flex gap-2" key={item}>
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
+          {renderPortionList(meal.items, primaryPortionKey, 'rose')}
+          {editingPortions && meal.items.length > 0 && onPortionsChange ? (
+            <PortionEditor items={meal.items} portionKey={primaryPortionKey} overrides={primaryOverrides} onChange={onPortionsChange} />
+          ) : null}
+          {primaryIsCustomized && editingPortions && onPortionsChange ? (
+            <button className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-slate-400" onClick={() => onPortionsChange(primaryPortionKey, [])} type="button">
+              <RotateCcw size={14} aria-hidden="true" /> Restaurar porções sugeridas
+            </button>
           ) : null}
 
           {meal.options?.length ? (
             <div className="mt-4 space-y-2">
               <p className="text-xs font-black uppercase tracking-wide text-slate-500">Opções e substituições</p>
-              {meal.options.map((option) => (
-                <div className="rounded-xl border border-white/10 bg-white/[0.035] p-3" key={option.id}>
-                  <p className="text-sm font-extrabold text-slate-100">{option.title}</p>
-                  <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-slate-400">
-                    {option.items.map((item) => (
-                      <li className="flex gap-2" key={item}>
-                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-300" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {option.note ? <p className="mt-2 text-xs leading-relaxed text-slate-500">{option.note}</p> : null}
-                </div>
-              ))}
+              {meal.options.map((option) => {
+                const optionPortionKey = getMealPortionKey(meal.id, option.id);
+                const optionIsCustomized = hasPortionChanges(option.items, portionOverrides?.[optionPortionKey]);
+                return (
+                  <div className="rounded-xl border border-white/10 bg-white/[0.035] p-3" key={option.id}>
+                    <p className="text-sm font-extrabold text-slate-100">{option.title}</p>
+                    {renderPortionList(option.items, optionPortionKey, 'teal')}
+                    {editingPortions && onPortionsChange ? (
+                      <PortionEditor
+                        items={option.items}
+                        portionKey={optionPortionKey}
+                        overrides={portionOverrides?.[optionPortionKey]}
+                        onChange={onPortionsChange}
+                      />
+                    ) : null}
+                    {optionIsCustomized && editingPortions && onPortionsChange ? (
+                      <button className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-slate-400" onClick={() => onPortionsChange(optionPortionKey, [])} type="button">
+                        <RotateCcw size={14} aria-hidden="true" /> Restaurar porções sugeridas
+                      </button>
+                    ) : null}
+                    {option.note ? <p className="mt-2 text-xs leading-relaxed text-slate-500">{option.note}</p> : null}
+                  </div>
+                );
+              })}
             </div>
           ) : null}
         </>
@@ -155,6 +286,11 @@ export function MealCard({ meal, done = false, editable = false, showMacros = tr
       ) : null}
 
       {meal.note ? <p className="mt-3 text-sm leading-relaxed text-slate-500">{meal.note}</p> : null}
+      {onPortionsChange ? (
+        <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+          <PencilLine size={13} aria-hidden="true" /> Toque no ícone de ajustes para editar quantidade e unidade.
+        </p>
+      ) : null}
     </Card>
   );
 }

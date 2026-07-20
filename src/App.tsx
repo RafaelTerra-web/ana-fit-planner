@@ -21,6 +21,8 @@ import type {
   Goals,
   LegacyExerciseLog,
   Meal,
+  MealPortion,
+  MealPortionOverrides,
   Profile,
   ProgressEntry,
   WeekPlanItem,
@@ -117,6 +119,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function normalizeMealPortionOverrides(value: unknown): MealPortionOverrides {
+  if (!isRecord(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([portionKey, portions]) => {
+      if (!Array.isArray(portions)) return [];
+      const normalized = portions.flatMap((portion): MealPortion[] => {
+        if (!isRecord(portion) || typeof portion.itemId !== 'string' || typeof portion.label !== 'string') return [];
+        const quantity = typeof portion.quantity === 'number' && Number.isFinite(portion.quantity) && portion.quantity > 0
+          ? portion.quantity
+          : undefined;
+        const unit = typeof portion.unit === 'string' && portion.unit.trim() ? portion.unit.trim() : undefined;
+        return [{ itemId: portion.itemId, label: portion.label, ...(quantity ? { quantity } : {}), ...(unit ? { unit } : {}) }];
+      });
+      return normalized.length ? [[portionKey, normalized]] : [];
+    }),
+  );
+}
+
 function normalizeAppData(value: unknown): AppData {
   const fallback = createInitialData();
 
@@ -140,6 +161,7 @@ function normalizeAppData(value: unknown): AppData {
       ...goals,
     },
     meals: Array.isArray(value.meals) ? (value.meals as Meal[]) : fallback.meals,
+    mealPortionOverrides: normalizeMealPortionOverrides(value.mealPortionOverrides),
     assignedNutritionPlan: normalizeAssignedNutritionPlan(value.assignedNutritionPlan),
     notifications: {
       ...fallback.notifications,
@@ -548,6 +570,7 @@ function App() {
           ...goals,
         },
         meals: calculateMealPlan(current.profile, { ...current.goals, ...goals }),
+        mealPortionOverrides: {},
       };
     });
   };
@@ -570,6 +593,7 @@ function App() {
         profile: nextProfile,
         goals: hasAssignedPlan ? current.goals : nextGoals,
         meals: hasAssignedPlan ? current.meals : calculateMealPlan(nextProfile, nextGoals),
+        mealPortionOverrides: hasAssignedPlan ? current.mealPortionOverrides : {},
         notifications: current.notifications ?? createDefaultNotificationSettings(),
       };
     });
@@ -608,6 +632,18 @@ function App() {
     }));
   };
 
+  const updateMealPortions = (portionKey: string, portions: MealPortion[]) => {
+    updateData((current) => {
+      const nextOverrides = { ...(current.mealPortionOverrides ?? {}) };
+      if (portions.length) {
+        nextOverrides[portionKey] = portions;
+      } else {
+        delete nextOverrides[portionKey];
+      }
+      return { ...current, mealPortionOverrides: nextOverrides };
+    });
+  };
+
   const updateWorkouts = (workouts: WorkoutPlan[]) => {
     updateData((current) => ({ ...current, workouts }));
   };
@@ -633,6 +669,7 @@ function App() {
         profile: nextProfile,
         goals: hasAssignedPlan ? current.goals : nextGoals,
         meals: hasAssignedPlan ? current.meals : calculateMealPlan(nextProfile, nextGoals),
+        mealPortionOverrides: hasAssignedPlan ? current.mealPortionOverrides : {},
       };
     });
   };
@@ -674,6 +711,7 @@ function App() {
             },
             goals: data.goals,
             meals: data.meals,
+            mealPortionOverrides: data.mealPortionOverrides,
             assignedNutritionPlan: data.assignedNutritionPlan,
             dailyChecks: {
               [getLocalDateKey()]: createDailyChecks(data.meals),
@@ -721,7 +759,9 @@ function App() {
             onWorkoutsChange={updateWorkouts}
           />
         ) : null}
-        {activeTab === 'diet' ? <Diet data={data} todayChecks={todayChecks} onToggleMeal={toggleMeal} /> : null}
+        {activeTab === 'diet' ? (
+          <Diet data={data} todayChecks={todayChecks} onToggleMeal={toggleMeal} onPortionsChange={updateMealPortions} />
+        ) : null}
         {activeTab === 'progress' ? <Progress data={data} onAddProgress={addProgress} /> : null}
         {activeTab === 'settings' ? (
           <Settings
