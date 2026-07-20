@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/authContext';
 import { supabase } from '../lib/supabase';
+import { jsonValuesAreEqual } from '../utils/json';
 import {
   completeCloudUpload,
   markCloudDataPending,
@@ -53,7 +54,7 @@ export function useCloudSync(data: unknown, enabled = true) {
           setStatus(navigator.onLine ? 'error' : 'offline');
           return false;
         }
-        if (remoteRow && JSON.stringify(remoteRow.data) === serialized && typeof remoteRow.updated_at === 'string') {
+        if (remoteRow && jsonValuesAreEqual(remoteRow.data, dataToUpload) && typeof remoteRow.updated_at === 'string') {
           completeCloudUpload(userId, uploadVersion, remoteRow.updated_at);
           lastUploadedRef.current = serialized;
           setLastSyncedAt(new Date().toISOString());

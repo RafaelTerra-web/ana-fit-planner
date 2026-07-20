@@ -6,6 +6,7 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import type { AppData } from '../types';
 import { normalizeAssignedNutritionPlan } from '../utils/assignedNutritionPlan';
 import { detachPushSubscriptionForCurrentUser } from '../utils/notifications';
+import { jsonValuesAreEqual } from '../utils/json';
 import {
   APP_STORAGE_KEY,
   clearSharedStoredAppData,
@@ -751,7 +752,7 @@ async function prepareUserData(user: User): Promise<MigrationResult> {
       if (typeof remoteRow.updated_at !== 'string') {
         throw new Error('Remote app data is missing its concurrency version.');
       }
-      if (JSON.stringify(preparedData) === JSON.stringify(remoteRow.data)) {
+      if (jsonValuesAreEqual(preparedData, remoteRow.data)) {
         uploadedAt = remoteRow.updated_at;
       } else if (!pendingMarker.baseUpdatedAt) {
         throw new CloudConflictError('Local changes have no safe cloud base.');
