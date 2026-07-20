@@ -2,7 +2,15 @@ export const APP_STORAGE_KEY = 'ana-fit-planner:data:v5';
 export const LEGACY_APP_STORAGE_KEY = 'ana-fit-planner:data:v4';
 export const CLOUD_OWNER_STORAGE_KEY = 'ana-fit-planner:cloud-owner:v1';
 export const CLOUD_PENDING_STORAGE_KEY = 'ana-fit-planner:cloud-pending:v1';
+export const CLOUD_SYNC_VERSION_STORAGE_KEY = 'ana-fit-planner:cloud-version:v1';
 const UNCLAIMED_STORAGE_PREFIX = 'ana-fit-planner:unclaimed';
+const CONFLICT_BACKUP_STORAGE_PREFIX = 'ana-fit-planner:conflict-backup';
+
+export type CloudPendingMarker = {
+  ownerId: string;
+  version: string;
+  baseUpdatedAt?: string;
+};
 
 export type StoredAppData = {
   data: unknown;
@@ -64,13 +72,34 @@ function getUserCloudPendingStorageKey(ownerId: string) {
   return `${CLOUD_PENDING_STORAGE_KEY}:user:${ownerId}`;
 }
 
+function getUserCloudSyncVersionStorageKey(ownerId: string) {
+  return `${CLOUD_SYNC_VERSION_STORAGE_KEY}:user:${ownerId}`;
+}
+
+export function readCloudSyncVersion(ownerId: string) {
+  const value = window.localStorage.getItem(getUserCloudSyncVersionStorageKey(ownerId));
+  return value && Number.isFinite(Date.parse(value)) ? value : null;
+}
+
+export function writeCloudSyncVersion(ownerId: string, updatedAt: string) {
+  if (!Number.isFinite(Date.parse(updatedAt))) {
+    throw new Error('A versao remota recebida e invalida.');
+  }
+  window.localStorage.setItem(getUserCloudSyncVersionStorageKey(ownerId), updatedAt);
+}
+
 export function markCloudDataPending(ownerId: string) {
+  const current = readCloudPendingMarkerFromKey(getUserCloudPendingStorageKey(ownerId));
   const version = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
-  window.localStorage.setItem(getUserCloudPendingStorageKey(ownerId), JSON.stringify({ ownerId, version }));
+  const baseUpdatedAt = current?.baseUpdatedAt ?? readCloudSyncVersion(ownerId) ?? undefined;
+  window.localStorage.setItem(
+    getUserCloudPendingStorageKey(ownerId),
+    JSON.stringify({ ownerId, version, ...(baseUpdatedAt ? { baseUpdatedAt } : {}) }),
+  );
   return version;
 }
 
-function readCloudPendingMarkerFromKey(key: string): { ownerId: string; version: string } | null {
+function readCloudPendingMarkerFromKey(key: string): CloudPendingMarker | null {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(key) ?? 'null') as unknown;
     if (
@@ -79,9 +108,15 @@ function readCloudPendingMarkerFromKey(key: string): { ownerId: string; version:
       'ownerId' in parsed &&
       'version' in parsed &&
       typeof parsed.ownerId === 'string' &&
-      typeof parsed.version === 'string'
+      typeof parsed.version === 'string' &&
+      (!('baseUpdatedAt' in parsed) ||
+        (typeof parsed.baseUpdatedAt === 'string' && Number.isFinite(Date.parse(parsed.baseUpdatedAt))))
     ) {
-      return { ownerId: parsed.ownerId, version: parsed.version };
+      return {
+        ownerId: parsed.ownerId,
+        version: parsed.version,
+        ...('baseUpdatedAt' in parsed ? { baseUpdatedAt: parsed.baseUpdatedAt as string } : {}),
+      };
     }
   } catch {
     // Invalid markers are ignored; the app data itself remains untouched.
@@ -90,7 +125,7 @@ function readCloudPendingMarkerFromKey(key: string): { ownerId: string; version:
   return null;
 }
 
-export function readCloudPendingMarker(ownerId?: string): { ownerId: string; version: string } | null {
+export function readCloudPendingMarker(ownerId?: string): CloudPendingMarker | null {
   const activeOwner = ownerId ?? window.localStorage.getItem(CLOUD_OWNER_STORAGE_KEY);
   if (activeOwner) {
     const scopedMarker = readCloudPendingMarkerFromKey(getUserCloudPendingStorageKey(activeOwner));
@@ -98,6 +133,29 @@ export function readCloudPendingMarker(ownerId?: string): { ownerId: string; ver
   }
 
   return readCloudPendingMarkerFromKey(CLOUD_PENDING_STORAGE_KEY);
+}
+
+export function completeCloudUpload(ownerId: string, uploadedVersion: string, updatedAt: string) {
+  writeCloudSyncVersion(ownerId, updatedAt);
+  const key = getUserCloudPendingStorageKey(ownerId);
+  const current = readCloudPendingMarkerFromKey(key);
+
+  if (!current || current.version === uploadedVersion) {
+    clearCloudPendingMarker(uploadedVersion, ownerId);
+    return;
+  }
+
+  window.localStorage.setItem(key, JSON.stringify({ ...current, baseUpdatedAt: updatedAt }));
+}
+
+export function preservePendingUserDataBeforeCloudDownload(ownerId: string) {
+  const current = window.localStorage.getItem(getUserAppStorageKey(ownerId));
+  if (!current) return false;
+
+  const backupKey = `${CONFLICT_BACKUP_STORAGE_PREFIX}:user:${ownerId}:${Date.now()}`;
+  window.localStorage.setItem(backupKey, current);
+  clearCloudPendingMarker(undefined, ownerId);
+  return true;
 }
 
 export function clearCloudPendingMarker(version?: string, ownerId?: string) {

@@ -3,23 +3,31 @@ import { Activity, CheckCircle2, Cloud, Dumbbell, Eye, EyeOff, LoaderCircle, Loc
 import { type FormEvent, type PropsWithChildren, useEffect, useState } from 'react';
 import { AuthContext, getUserDisplayName, type ForgetAfterDays, type MigrationResult } from './authContext';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import type { AppData } from '../types';
+import { normalizeAssignedNutritionPlan } from '../utils/assignedNutritionPlan';
 import { detachPushSubscriptionForCurrentUser } from '../utils/notifications';
 import {
   APP_STORAGE_KEY,
   clearSharedStoredAppData,
   clearCloudPendingMarker,
+  completeCloudUpload,
   CLOUD_OWNER_STORAGE_KEY,
   getUserAppStorageKey,
   LEGACY_APP_STORAGE_KEY,
   preserveDataFromAnotherAccount,
+  preservePendingUserDataBeforeCloudDownload,
   preserveUnclaimedStoredData,
   readCloudPendingMarker,
+  readCloudSyncVersion,
   readStoredAppData,
+  writeCloudSyncVersion,
   writeStoredAppData,
 } from '../lib/storage';
 
 const FORGET_AFTER_STORAGE_KEY = 'ana-fit-planner:forget-after-days:v1';
 const LAST_ACTIVITY_STORAGE_KEY = 'ana-fit-planner:last-activity:v1';
+
+class CloudConflictError extends Error {}
 
 function accountSettingKey(key: string, userId?: string) {
   return userId ? `${key}:user:${userId}` : key;
@@ -221,6 +229,7 @@ function LoginScreen() {
             display_name: displayName,
             force_password_change: false,
             created_via_anfit_signup: true,
+            requires_onboarding: true,
           },
           emailRedirectTo: window.location.origin,
         },
@@ -392,10 +401,212 @@ function SetPasswordScreen({ user, onComplete }: { user: User; onComplete: (user
   );
 }
 
-function withUserProfileName(data: unknown, user: User) {
+type AssignedNutritionMarker = {
+  id: string;
+  revision: number;
+  assignedAt: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function readAssignedNutritionMarker(user: User): AssignedNutritionMarker | null {
+  const metadata = isRecord(user.app_metadata) ? user.app_metadata : {};
+  const id = metadata.assigned_nutrition_plan_id;
+  const revision = metadata.assigned_nutrition_plan_revision;
+  const assignedAt = metadata.assigned_nutrition_plan_assigned_at;
+  const hasAnyMarkerField = id !== undefined || revision !== undefined || assignedAt !== undefined;
+
+  if (!hasAnyMarkerField) return null;
+  if (
+    typeof id !== 'string' ||
+    !id.trim() ||
+    typeof revision !== 'number' ||
+    !Number.isInteger(revision) ||
+    revision < 1 ||
+    typeof assignedAt !== 'string' ||
+    !assignedAt.trim() ||
+    !Number.isFinite(Date.parse(assignedAt))
+  ) {
+    throw new Error('Invalid assigned nutrition marker.');
+  }
+
+  return { id, revision, assignedAt };
+}
+
+function sameAssignedNutritionMarker(first: AssignedNutritionMarker | null, second: AssignedNutritionMarker | null) {
+  if (!first || !second) return first === second;
+  return first.id === second.id && first.revision === second.revision && first.assignedAt === second.assignedAt;
+}
+
+function hasAssignedNutritionField(data: unknown) {
+  return isRecord(data) && Object.prototype.hasOwnProperty.call(data, 'assignedNutritionPlan');
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isAssignedMealOption(value: unknown) {
+  return isRecord(value) &&
+    typeof value.id === 'string' &&
+    Boolean(value.id.trim()) &&
+    typeof value.title === 'string' &&
+    isStringArray(value.items) &&
+    value.items.length > 0 &&
+    (value.note === undefined || typeof value.note === 'string');
+}
+
+function isAssignedMeal(value: unknown, requireMacros: boolean) {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    !value.id.trim() ||
+    typeof value.title !== 'string' ||
+    typeof value.time !== 'string' ||
+    typeof value.note !== 'string' ||
+    !isStringArray(value.items) ||
+    (value.optional !== undefined && typeof value.optional !== 'boolean') ||
+    (value.appliesTo !== undefined && value.appliesTo !== 'training' && value.appliesTo !== 'rest' && value.appliesTo !== 'both') ||
+    (value.options !== undefined &&
+      (!Array.isArray(value.options) || !value.options.every(isAssignedMealOption))) ||
+    (value.items.length === 0 && (!Array.isArray(value.options) || value.options.length === 0))
+  ) return false;
+
+  if (Array.isArray(value.options)) {
+    const optionIds = value.options.map((option) => (option as Record<string, unknown>).id);
+    if (new Set(optionIds).size !== optionIds.length) return false;
+  }
+
+  const macroFields = ['calories', 'protein', 'carbs', 'fat'];
+  const optionalMacrosAreValid = macroFields.every(
+    (field) => value[field] === undefined || (typeof value[field] === 'number' && Number.isFinite(value[field]))
+  );
+  return optionalMacrosAreValid && (!requireMacros || macroFields.every((field) => value[field] !== undefined));
+}
+
+function getAuthoritativeNutrition(data: unknown, marker: AssignedNutritionMarker) {
+  if (!isRecord(data)) throw new Error('Assigned nutrition row is missing.');
+
+  const plan = normalizeAssignedNutritionPlan(data.assignedNutritionPlan);
+  if (
+    !plan ||
+    plan.id !== marker.id ||
+    plan.revision !== marker.revision ||
+    plan.assignedAt !== marker.assignedAt
+  ) {
+    throw new Error('Assigned nutrition marker does not match the remote plan.');
+  }
+
+  const goals = data.goals;
+  if (
+    !isRecord(goals) ||
+    !['calories', 'protein', 'fat', 'waterLiters'].every(
+      (field) => typeof goals[field] === 'number' && Number.isFinite(goals[field])
+    )
+  ) {
+    throw new Error('Assigned nutrition goals are invalid.');
+  }
+
+  const meals = data.meals;
+  const requireMealMacros = plan.mealStrategy === 'fixed';
+  if (!Array.isArray(meals) || meals.length === 0 || !meals.every((meal) => isAssignedMeal(meal, requireMealMacros))) {
+    throw new Error('Assigned nutrition meals are invalid.');
+  }
+  const mealIds = meals.map((meal) => (meal as Record<string, unknown>).id);
+  if (new Set(mealIds).size !== mealIds.length) {
+    throw new Error('Assigned nutrition meal IDs are duplicated.');
+  }
+
+  const profile = data.profile;
+  if (!isRecord(profile) || !isStringArray(profile.preferredFoods) || !isStringArray(profile.avoidedFoods)) {
+    throw new Error('Assigned nutrition preferences are invalid.');
+  }
+
+  return {
+    plan,
+    goals,
+    meals,
+    preferredFoods: profile.preferredFoods,
+    avoidedFoods: profile.avoidedFoods,
+  };
+}
+
+function mergeAuthoritativeNutrition(localData: unknown, remoteData: unknown, marker: AssignedNutritionMarker) {
+  const nutrition = getAuthoritativeNutrition(remoteData, marker);
+  if (!isRecord(remoteData) || !isRecord(localData)) {
+    throw new Error('Cannot merge an assigned nutrition plan into incomplete app data.');
+  }
+
+  const remoteProfile = isRecord(remoteData.profile) ? remoteData.profile : {};
+  const localProfile = isRecord(localData.profile) ? localData.profile : {};
+  return {
+    ...remoteData,
+    ...localData,
+    profile: {
+      ...remoteProfile,
+      ...localProfile,
+      preferredFoods: nutrition.preferredFoods,
+      avoidedFoods: nutrition.avoidedFoods,
+    },
+    goals: nutrition.goals,
+    meals: nutrition.meals,
+    assignedNutritionPlan: nutrition.plan,
+  };
+}
+
+function hasRecordEntries(value: unknown) {
+  return isRecord(value) && Object.keys(value).length > 0;
+}
+
+function hasSubstantiveAppData(data: unknown) {
+  if (!isRecord(data)) return false;
+
+  const profile = isRecord(data.profile) ? data.profile : {};
+  if (profile.onboardingCompleted === true) return true;
+
+  const profileHasPersonalization = [
+    'heightCm',
+    'weightKg',
+    'trainingDays',
+    'cardioDays',
+    'objective',
+    'eatingStyle',
+    'mealsPerDay',
+  ].some((field) => Object.prototype.hasOwnProperty.call(profile, field));
+
+  return profileHasPersonalization ||
+    hasRecordEntries(data.goals) ||
+    (Array.isArray(data.meals) && data.meals.length > 0) ||
+    (Array.isArray(data.workouts) && data.workouts.length > 0) ||
+    (Array.isArray(data.weekPlan) && data.weekPlan.length > 0) ||
+    hasRecordEntries(data.dailyChecks) ||
+    hasRecordEntries(data.rank) ||
+    (Array.isArray(data.progressEntries) && data.progressEntries.length > 0);
+}
+
+function hasIncompleteOnboarding(data: unknown) {
+  return isRecord(data) && isRecord(data.profile) && data.profile.onboardingCompleted === false;
+}
+
+function withUserProfileName(data: unknown, user: User, initializeOnboarding = false) {
   const displayName = getUserDisplayName(user) ?? 'Atleta';
+  const requiresOnboarding = initializeOnboarding || user.user_metadata?.requires_onboarding === true;
+  const emptyOnboardingProfile = {
+    onboardingCompleted: false,
+    age: 0,
+    heightCm: 0,
+    weightKg: 0,
+    preferredFoods: [],
+    avoidedFoods: [],
+  };
+
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    return { schemaVersion: 5, profile: { name: displayName } };
+    return {
+      schemaVersion: 5,
+      profile: { name: displayName, ...(requiresOnboarding ? emptyOnboardingProfile : {}) },
+    };
   }
 
   const appData = data as Record<string, unknown>;
@@ -404,23 +615,66 @@ function withUserProfileName(data: unknown, user: User) {
     ? storedProfile as Record<string, unknown>
     : {};
   const storedName = typeof profile.name === 'string' ? profile.name.trim() : '';
+  const shouldInitializeOnboarding = requiresOnboarding && profile.onboardingCompleted !== true;
+  const onboardingDefaults = shouldInitializeOnboarding
+    ? {
+        onboardingCompleted: false,
+        age: typeof profile.age === 'number' ? profile.age : 0,
+        heightCm: typeof profile.heightCm === 'number' ? profile.heightCm : 0,
+        weightKg: typeof profile.weightKg === 'number' ? profile.weightKg : 0,
+        preferredFoods: Array.isArray(profile.preferredFoods) ? profile.preferredFoods : [],
+        avoidedFoods: Array.isArray(profile.avoidedFoods) ? profile.avoidedFoods : [],
+      }
+    : {};
 
-  return storedName
-    ? data
-    : { ...appData, profile: { ...profile, name: displayName } };
+  if (storedName && !shouldInitializeOnboarding) return data;
+
+  return {
+    ...appData,
+    profile: {
+      ...profile,
+      ...onboardingDefaults,
+      name: storedName || displayName,
+    },
+  };
 }
 
 async function uploadUserData(userId: string, data: unknown) {
   if (!supabase) throw new Error('Supabase is not configured.');
-  const { error } = await supabase.from('anfit_user_app_data').upsert({ user_id: userId, data });
+  const { data: insertedRow, error } = await supabase
+    .from('anfit_user_app_data')
+    .insert({ user_id: userId, data })
+    .select('updated_at')
+    .single();
   if (error) throw error;
+  if (typeof insertedRow.updated_at !== 'string') throw new Error('The remote version is missing after insert.');
+  return insertedRow.updated_at;
 }
 
-async function assertActiveUser(userId: string) {
+async function uploadVersionedUserData(userId: string, data: unknown, expectedUpdatedAt: string) {
+  if (!supabase) throw new Error('Supabase is not configured.');
+  const { data: updatedRow, error } = await supabase
+    .from('anfit_user_app_data')
+    .update({ data })
+    .eq('user_id', userId)
+    .eq('updated_at', expectedUpdatedAt)
+    .select('updated_at')
+    .maybeSingle();
+  if (error) throw error;
+  if (!updatedRow) throw new Error('Remote app data changed while it was being saved.');
+  if (typeof updatedRow.updated_at !== 'string') throw new Error('The remote version is missing after update.');
+  return updatedRow.updated_at;
+}
+
+async function assertActiveUser(userId: string, expectedMarker?: AssignedNutritionMarker | null) {
   if (!supabase) throw new Error('Supabase is not configured.');
   const { data, error } = await supabase.auth.getUser();
   if (error) throw error;
   if (data.user?.id !== userId) throw new Error('Authentication changed while preparing local data.');
+  if (expectedMarker !== undefined && !sameAssignedNutritionMarker(readAssignedNutritionMarker(data.user), expectedMarker)) {
+    throw new Error('Assigned nutrition changed while preparing local data.');
+  }
+  return data.user;
 }
 
 async function prepareUserData(user: User): Promise<MigrationResult> {
@@ -428,12 +682,24 @@ async function prepareUserData(user: User): Promise<MigrationResult> {
 
   const userId = user.id;
 
-  const { data: remoteRow, error } = await supabase.from('anfit_user_app_data').select('data').eq('user_id', userId).maybeSingle();
+  const { data: remoteRow, error } = await supabase
+    .from('anfit_user_app_data')
+    .select('data,updated_at')
+    .eq('user_id', userId)
+    .maybeSingle();
   if (error) throw error;
-  await assertActiveUser(userId);
+  const activeUser = await assertActiveUser(userId);
+  const assignedNutritionMarker = readAssignedNutritionMarker(activeUser);
+  const remoteHasAssignedNutrition = hasAssignedNutritionField(remoteRow?.data);
+
+  if (assignedNutritionMarker) {
+    getAuthoritativeNutrition(remoteRow?.data, assignedNutritionMarker);
+  } else if (remoteHasAssignedNutrition) {
+    throw new Error('Remote assigned nutrition is missing its authoritative account marker.');
+  }
 
   const previousOwner = window.localStorage.getItem(CLOUD_OWNER_STORAGE_KEY);
-  const accountWasCreatedInApp = user.user_metadata?.created_via_anfit_signup === true;
+  const accountWasCreatedInApp = activeUser.user_metadata?.created_via_anfit_signup === true;
   if (previousOwner && previousOwner !== userId) {
     moveSharedAccountSettings(previousOwner);
     preserveDataFromAnotherAccount(previousOwner);
@@ -445,16 +711,27 @@ async function prepareUserData(user: User): Promise<MigrationResult> {
   const localCopy = readStoredAppData(userId, mayClaimSharedCopy);
   const pendingMarker = readCloudPendingMarker(userId);
   const scopedStorageKey = getUserAppStorageKey(userId);
+  const remoteHasSubstantiveData = hasSubstantiveAppData(remoteRow?.data);
+  const localHasSubstantiveData = hasSubstantiveAppData(localCopy?.data);
+  const initializeOnboarding =
+    activeUser.user_metadata?.requires_onboarding === true ||
+    hasIncompleteOnboarding(remoteRow?.data) ||
+    (!remoteHasSubstantiveData && (hasIncompleteOnboarding(localCopy?.data) || !localHasSubstantiveData));
 
-  const finishPreparation = async (data: unknown, source?: string) => {
-    await assertActiveUser(userId);
+  if (!assignedNutritionMarker && localCopy && hasAssignedNutritionField(localCopy.data)) {
+    throw new Error('Local assigned nutrition is missing its authoritative account marker.');
+  }
+
+  const finishPreparation = async (data: unknown, updatedAt: string, source?: string) => {
+    await assertActiveUser(userId, assignedNutritionMarker);
     writeStoredAppData(data, userId);
+    writeCloudSyncVersion(userId, updatedAt);
     if (source === APP_STORAGE_KEY || source === LEGACY_APP_STORAGE_KEY) {
       clearSharedStoredAppData();
     }
     window.localStorage.setItem(CLOUD_OWNER_STORAGE_KEY, userId);
     try {
-      await assertActiveUser(userId);
+      await assertActiveUser(userId, assignedNutritionMarker);
     } catch (error) {
       if (window.localStorage.getItem(CLOUD_OWNER_STORAGE_KEY) === userId) {
         window.localStorage.removeItem(CLOUD_OWNER_STORAGE_KEY);
@@ -464,41 +741,176 @@ async function prepareUserData(user: User): Promise<MigrationResult> {
   };
 
   if (pendingMarker?.ownerId === userId && localCopy) {
-    const preparedData = withUserProfileName(localCopy.data, user);
-    await uploadUserData(userId, preparedData);
-    await finishPreparation(preparedData, localCopy.source);
+    const localData = withUserProfileName(localCopy.data, activeUser, initializeOnboarding);
+    const preparedData = assignedNutritionMarker
+      ? mergeAuthoritativeNutrition(localData, remoteRow?.data, assignedNutritionMarker)
+      : localData;
+    await assertActiveUser(userId, assignedNutritionMarker);
+    let uploadedAt: string;
+    if (remoteRow) {
+      if (typeof remoteRow.updated_at !== 'string') {
+        throw new Error('Remote app data is missing its concurrency version.');
+      }
+      if (JSON.stringify(preparedData) === JSON.stringify(remoteRow.data)) {
+        uploadedAt = remoteRow.updated_at;
+      } else if (!pendingMarker.baseUpdatedAt) {
+        throw new CloudConflictError('Local changes have no safe cloud base.');
+      } else {
+        if (pendingMarker.baseUpdatedAt !== remoteRow.updated_at) {
+          throw new CloudConflictError('Cloud data changed on another device.');
+        }
+        uploadedAt = await uploadVersionedUserData(userId, preparedData, pendingMarker.baseUpdatedAt);
+      }
+    } else {
+      if (pendingMarker.baseUpdatedAt) {
+        throw new CloudConflictError('The cloud row disappeared after local changes were created.');
+      }
+      uploadedAt = await uploadUserData(userId, preparedData);
+    }
+    await finishPreparation(preparedData, uploadedAt, localCopy.source);
     clearCloudPendingMarker(pendingMarker.version, userId);
     return 'uploaded';
   }
 
+  if (remoteRow?.data && !remoteHasSubstantiveData && localCopy && localHasSubstantiveData) {
+    if (typeof remoteRow.updated_at !== 'string') {
+      throw new Error('New account data is missing its concurrency version.');
+    }
+    const preparedData = withUserProfileName(localCopy.data, activeUser, initializeOnboarding);
+    await assertActiveUser(userId, assignedNutritionMarker);
+    const uploadedAt = await uploadVersionedUserData(userId, preparedData, remoteRow.updated_at);
+    await finishPreparation(preparedData, uploadedAt, localCopy.source === scopedStorageKey ? undefined : localCopy.source);
+    clearCloudPendingMarker(undefined, userId);
+    return 'uploaded';
+  }
+
   if (remoteRow?.data) {
-    const preparedData = withUserProfileName(remoteRow.data, user);
-    await finishPreparation(preparedData);
+    const remoteWasEmpty = !remoteHasSubstantiveData;
+    const preparedData = withUserProfileName(remoteRow.data, activeUser, initializeOnboarding);
+    if (remoteWasEmpty) {
+      if (typeof remoteRow.updated_at !== 'string') {
+        throw new Error('New account data is missing its concurrency version.');
+      }
+      await assertActiveUser(userId, assignedNutritionMarker);
+      const uploadedAt = await uploadVersionedUserData(userId, preparedData, remoteRow.updated_at);
+      await finishPreparation(preparedData, uploadedAt);
+    } else {
+      if (typeof remoteRow.updated_at !== 'string') {
+        throw new Error('Remote app data is missing its concurrency version.');
+      }
+      await finishPreparation(preparedData, remoteRow.updated_at);
+    }
     if (!previousOwner && readStoredAppData()) preserveUnclaimedStoredData();
     if (previousOwner === userId) clearSharedStoredAppData();
     clearCloudPendingMarker(undefined, userId);
-    return 'downloaded';
+    return remoteWasEmpty ? 'uploaded' : 'downloaded';
   }
 
   if (localCopy) {
-    const preparedData = withUserProfileName(localCopy.data, user);
-    await uploadUserData(userId, preparedData);
-    await finishPreparation(preparedData, localCopy.source === scopedStorageKey ? undefined : localCopy.source);
+    const preparedData = withUserProfileName(localCopy.data, activeUser, initializeOnboarding);
+    const uploadedAt = await uploadUserData(userId, preparedData);
+    await finishPreparation(preparedData, uploadedAt, localCopy.source === scopedStorageKey ? undefined : localCopy.source);
     clearCloudPendingMarker(undefined, userId);
     return 'uploaded';
   }
 
   if (!previousOwner && readStoredAppData()) preserveUnclaimedStoredData();
-  const initialData = withUserProfileName(null, user);
-  await uploadUserData(userId, initialData);
-  await finishPreparation(initialData);
+  const initialData = withUserProfileName(null, activeUser, true);
+  const uploadedAt = await uploadUserData(userId, initialData);
+  await finishPreparation(initialData, uploadedAt);
   clearCloudPendingMarker(undefined, userId);
   return 'empty';
+}
+
+async function persistCompletedOnboarding(user: User, completedData: AppData) {
+  if (!supabase) throw new Error('Supabase is not configured.');
+  if (completedData.profile.onboardingCompleted !== true) {
+    throw new Error('Onboarding data is not marked as completed.');
+  }
+
+  const activeUser = await assertActiveUser(user.id);
+  const assignedNutritionMarker = readAssignedNutritionMarker(activeUser);
+  const localBaseUpdatedAt = readCloudSyncVersion(user.id);
+  const { data: remoteRow, error } = await supabase
+    .from('anfit_user_app_data')
+    .select('data,updated_at')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (error) throw error;
+
+  await assertActiveUser(user.id, assignedNutritionMarker);
+  const remoteHasAssignedNutrition = hasAssignedNutritionField(remoteRow?.data);
+  if (!assignedNutritionMarker && (remoteHasAssignedNutrition || hasAssignedNutritionField(completedData))) {
+    throw new Error('Assigned nutrition is missing its authoritative account marker.');
+  }
+
+  const dataToSave = assignedNutritionMarker
+    ? mergeAuthoritativeNutrition(completedData, remoteRow?.data, assignedNutritionMarker)
+    : completedData;
+
+  let savedUpdatedAt: string;
+  if (remoteRow) {
+    if (typeof remoteRow.updated_at !== 'string') {
+      throw new Error('Account data is missing its concurrency version.');
+    }
+    if (!localBaseUpdatedAt || localBaseUpdatedAt !== remoteRow.updated_at) {
+      throw new CloudConflictError('Cloud data changed while onboarding was open.');
+    }
+    savedUpdatedAt = await uploadVersionedUserData(user.id, dataToSave, localBaseUpdatedAt);
+  } else {
+    if (localBaseUpdatedAt) {
+      throw new CloudConflictError('The cloud row disappeared while onboarding was open.');
+    }
+    savedUpdatedAt = await uploadUserData(user.id, dataToSave);
+  }
+
+  const { data: persistedRow, error: verificationError } = await supabase
+    .from('anfit_user_app_data')
+    .select('data,updated_at')
+    .eq('user_id', user.id)
+    .single();
+  if (verificationError) throw verificationError;
+  if (
+    !isRecord(persistedRow.data) ||
+    !isRecord(persistedRow.data.profile) ||
+    persistedRow.data.profile.onboardingCompleted !== true
+  ) {
+    throw new Error('Completed onboarding was not persisted.');
+  }
+  if (assignedNutritionMarker) {
+    getAuthoritativeNutrition(persistedRow.data, assignedNutritionMarker);
+  } else if (hasAssignedNutritionField(persistedRow.data)) {
+    throw new Error('Persisted nutrition is missing its authoritative account marker.');
+  }
+  if (persistedRow.updated_at !== savedUpdatedAt) {
+    throw new Error('The onboarding save could not be verified against its remote version.');
+  }
+  const completedPendingMarker = readCloudPendingMarker(user.id);
+  if (completedPendingMarker) {
+    completeCloudUpload(user.id, completedPendingMarker.version, savedUpdatedAt);
+  } else {
+    writeCloudSyncVersion(user.id, savedUpdatedAt);
+  }
+
+  const verifiedUser = await assertActiveUser(user.id, assignedNutritionMarker);
+  if (verifiedUser.user_metadata?.requires_onboarding !== true) {
+    return { data: persistedRow.data as unknown as AppData, user: verifiedUser };
+  }
+
+  const { data: updateResult, error: metadataError } = await supabase.auth.updateUser({
+    data: { ...verifiedUser.user_metadata, requires_onboarding: false },
+  });
+  if (metadataError || !updateResult.user) {
+    throw metadataError ?? new Error('Could not finish onboarding metadata.');
+  }
+
+  return { data: persistedRow.data as unknown as AppData, user: updateResult.user };
 }
 
 export function AuthGate({ children }: PropsWithChildren) {
   const [user, setUser] = useState<User | null>(null);
   const [stage, setStage] = useState<'loading' | 'login' | 'password' | 'preparing' | 'ready' | 'error'>('loading');
+  const [preparationError, setPreparationError] = useState<'conflict' | 'generic' | null>(null);
   const [migrationResult, setMigrationResult] = useState<MigrationResult>('empty');
   const [forgetAfterDays, setForgetAfterDaysState] = useState<ForgetAfterDays>(readForgetAfterDays);
 
@@ -535,7 +947,7 @@ export function AuthGate({ children }: PropsWithChildren) {
 
     client.auth.getSession().then(({ data }) => routeUser(data.session?.user ?? null));
     const { data: listener } = client.auth.onAuthStateChange((event, session) => {
-      if (event === 'TOKEN_REFRESHED') return;
+      if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return;
       routeUser(session?.user ?? null, event === 'PASSWORD_RECOVERY');
     });
 
@@ -587,11 +999,15 @@ export function AuthGate({ children }: PropsWithChildren) {
     prepareUserData(user)
       .then((result) => {
         if (!active) return;
+        setPreparationError(null);
         setMigrationResult(result);
         setStage('ready');
       })
-      .catch(() => {
-        if (active) setStage('error');
+      .catch((error: unknown) => {
+        if (active) {
+          setPreparationError(error instanceof CloudConflictError ? 'conflict' : 'generic');
+          setStage('error');
+        }
       });
 
     return () => {
@@ -628,6 +1044,7 @@ export function AuthGate({ children }: PropsWithChildren) {
               window.localStorage.removeItem(accountSettingKey(FORGET_AFTER_STORAGE_KEY));
             }
           },
+          markOnboardingComplete: async (data) => data,
           signOut: async () => undefined,
         }}
       >
@@ -640,12 +1057,45 @@ export function AuthGate({ children }: PropsWithChildren) {
   if (stage === 'password') return <SetPasswordScreen user={user} onComplete={(updatedUser) => { setUser(updatedUser); setStage('preparing'); }} />;
   if (stage === 'preparing') return <LoadingScreen message="Sincronizando os dados deste aparelho com sua conta..." />;
   if (stage === 'error') {
+    const hasConflict = preparationError === 'conflict';
+    const useCloudCopy = () => {
+      try {
+        if (!preservePendingUserDataBeforeCloudDownload(user.id)) {
+          clearCloudPendingMarker(undefined, user.id);
+        }
+        setPreparationError(null);
+        setStage('preparing');
+      } catch {
+        setPreparationError('generic');
+      }
+    };
+
     return (
       <AuthShell>
         <Cloud className="text-rose-300" size={30} aria-hidden="true" />
-        <h1 className="mt-4 text-2xl font-black text-white">Não foi possível sincronizar</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-400">Seus dados locais continuam preservados. Verifique a conexão e tente novamente.</p>
-        <button className="primary-button mt-6 w-full" type="button" onClick={() => setStage('preparing')}>Tentar novamente</button>
+        <h1 className="mt-4 text-2xl font-black text-white">
+          {hasConflict ? 'Alterações em dois aparelhos' : 'Não foi possível sincronizar'}
+        </h1>
+        <p className="mt-2 text-sm leading-relaxed text-slate-400">
+          {hasConflict
+            ? 'A nuvem e este aparelho têm mudanças diferentes. Nada foi apagado. Você pode tentar novamente ou guardar uma cópia local e abrir a versão da nuvem.'
+            : 'Seus dados locais continuam preservados. Verifique a conexão e tente novamente.'}
+        </p>
+        <button
+          className="primary-button mt-6 w-full"
+          type="button"
+          onClick={() => {
+            setPreparationError(null);
+            setStage('preparing');
+          }}
+        >
+          Tentar novamente
+        </button>
+        {hasConflict ? (
+          <button className="secondary-button mt-3 w-full" type="button" onClick={useCloudCopy}>
+            Guardar cópia local e usar nuvem
+          </button>
+        ) : null}
       </AuthShell>
     );
   }
@@ -666,6 +1116,11 @@ export function AuthGate({ children }: PropsWithChildren) {
             window.localStorage.removeItem(accountSettingKey(FORGET_AFTER_STORAGE_KEY, user.id));
           }
           recordActivity(user.id);
+        },
+        markOnboardingComplete: async (data) => {
+          const result = await persistCompletedOnboarding(user, data);
+          setUser((currentUser) => currentUser?.id === result.user.id ? result.user : currentUser);
+          return result.data;
         },
         signOut: async () => {
           await detachPushSubscriptionForCurrentUser().catch(() => false);

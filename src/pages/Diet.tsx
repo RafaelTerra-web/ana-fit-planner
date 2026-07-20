@@ -1,10 +1,14 @@
-import { Beef, Clock3, Info, Utensils } from 'lucide-react';
+import { Clock3, Info, Leaf, Utensils } from 'lucide-react';
+import { AssignedNutritionPlanDetails, AssignedNutritionPlanGuidance } from '../components/AssignedNutritionPlanDetails';
 import { Card } from '../components/Card';
 import { MealCard } from '../components/MealCard';
 import { ProgressBar } from '../components/ProgressBar';
-import { cuttingRules } from '../data/dietPlan';
-import { foods } from '../data/foods';
-import type { AppData, DailyChecks } from '../types';
+import { getInitialPlanRules } from '../data/dietPlan';
+import { getFoodsForProfile } from '../data/foods';
+import { getTodayPlan } from '../data/workoutPlan';
+import type { AppData, DailyChecks, FitnessObjective } from '../types';
+import { getFitnessObjective } from '../utils/dietCalculator';
+import { getActiveMealDay, getApplicableMeals, getRequiredMeals, mealMacro } from '../utils/meals';
 import { getDietSuggestions } from '../utils/progressRules';
 
 type DietProps = {
@@ -19,25 +23,48 @@ const foodLabels = {
   fats: 'Gorduras',
 };
 
+const objectiveLabels: Record<FitnessObjective, string> = {
+  'body-recomposition': 'Recomposição corporal',
+  'fat-loss': 'Perda de gordura',
+  'muscle-gain': 'Ganho de massa',
+  performance: 'Performance',
+};
+
 export function Diet({ data, todayChecks, onToggleMeal }: DietProps) {
-  const totalCalories = data.meals.reduce((total, meal) => total + meal.calories, 0);
-  const totalProtein = data.meals.reduce((total, meal) => total + meal.protein, 0);
-  const completedMeals = data.meals.filter((meal) => todayChecks.meals[meal.id]);
-  const consumedCalories = completedMeals.reduce((total, meal) => total + meal.calories, 0);
-  const consumedProtein = completedMeals.reduce((total, meal) => total + meal.protein, 0);
-  const consumedCarbs = completedMeals.reduce((total, meal) => total + meal.carbs, 0);
-  const consumedFat = completedMeals.reduce((total, meal) => total + meal.fat, 0);
+  const assignedPlan = data.assignedNutritionPlan;
+  const flexiblePlan = assignedPlan?.mealStrategy === 'flexible';
+  const activeMealDay = getActiveMealDay(getTodayPlan(data.weekPlan).activityType);
+  const applicableMeals = getApplicableMeals(data.meals, activeMealDay);
+  const dismissedMealCount = data.meals.length - applicableMeals.length;
+  const requiredMeals = getRequiredMeals(data.meals, activeMealDay);
+  const totalCalories = requiredMeals.reduce((total, meal) => total + mealMacro(meal, 'calories'), 0);
+  const totalProtein = requiredMeals.reduce((total, meal) => total + mealMacro(meal, 'protein'), 0);
+  const completedMeals = applicableMeals.filter((meal) => todayChecks.meals[meal.id]);
+  const completedRequiredMeals = requiredMeals.filter((meal) => todayChecks.meals[meal.id]);
+  const consumedCalories = completedMeals.reduce((total, meal) => total + mealMacro(meal, 'calories'), 0);
+  const consumedProtein = completedMeals.reduce((total, meal) => total + mealMacro(meal, 'protein'), 0);
+  const consumedCarbs = completedMeals.reduce((total, meal) => total + mealMacro(meal, 'carbs'), 0);
+  const consumedFat = completedMeals.reduce((total, meal) => total + mealMacro(meal, 'fat'), 0);
   const calorieProgress = Math.round((consumedCalories / data.goals.calories) * 100);
   const proteinProgress = Math.round((consumedProtein / data.goals.protein) * 100);
-  const nextMeal = data.meals.find((meal) => !todayChecks.meals[meal.id]);
-  const suggestions = getDietSuggestions(data.meals, data.goals, data.progressEntries);
+  const nextMeal = requiredMeals.find((meal) => !todayChecks.meals[meal.id]);
+  const suggestions = getDietSuggestions(data.meals, data.goals, data.progressEntries, data.profile);
+  const initialPlanRules = getInitialPlanRules(data.profile);
+  const compatibleFoods = getFoodsForProfile(data.profile);
+  const objective = getFitnessObjective(data.profile);
 
   return (
     <div className="space-y-5">
       <header className="pt-2">
-        <p className="text-sm font-semibold text-rose-700">Cutting leve e sustentável</p>
+        <p className="text-sm font-semibold text-rose-700">
+          {assignedPlan ? 'Plano nutricional atribuído' : `Plano inicial · ${objectiveLabels[objective]}`}
+        </p>
         <h1 className="page-title mt-1">Dieta</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">Plano baseado nas suas preferências, com porções e macros ajustados ao seu perfil.</p>
+        {!assignedPlan ? (
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            Estimativa inicial baseada no objetivo, na rotina e nas preferências informadas. Você pode ajustar tudo nos Ajustes.
+          </p>
+        ) : null}
       </header>
 
       {nextMeal ? (
@@ -47,7 +74,8 @@ export function Diet({ data, todayChecks, onToggleMeal }: DietProps) {
               <p className="eyebrow">Próxima refeição</p>
               <h2 className="mt-2 text-xl font-black text-slate-50">{nextMeal.title}</h2>
               <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-slate-400">
-                <Clock3 size={15} aria-hidden="true" /> {nextMeal.time} · {nextMeal.calories} kcal
+                <Clock3 size={15} aria-hidden="true" /> {nextMeal.time}
+                {!flexiblePlan && typeof nextMeal.calories === 'number' ? ` · ${nextMeal.calories} kcal` : null}
               </p>
             </div>
             <button className="primary-button shrink-0 px-3" type="button" onClick={() => onToggleMeal(nextMeal.id)}>
@@ -57,11 +85,16 @@ export function Diet({ data, todayChecks, onToggleMeal }: DietProps) {
         </Card>
       ) : (
         <Card className="border-lime-300/20 bg-lime-300/[0.07]">
-          <p className="font-extrabold text-lime-200">Plano alimentar concluído hoje.</p>
+          <p className="font-extrabold text-lime-200">Refeições essenciais concluídas hoje.</p>
+          {applicableMeals.some((meal) => meal.optional && !todayChecks.meals[meal.id]) ? (
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">As refeições opcionais continuam disponíveis, sem obrigação.</p>
+          ) : null}
         </Card>
       )}
 
-      <Card>
+      {assignedPlan ? <AssignedNutritionPlanDetails plan={assignedPlan} /> : null}
+
+      {!flexiblePlan ? <Card>
         <div className="flex items-center gap-2">
           <Utensils className="text-rose-700" size={20} aria-hidden="true" />
           <h2 className="section-title">Consumido hoje</h2>
@@ -97,30 +130,42 @@ export function Diet({ data, todayChecks, onToggleMeal }: DietProps) {
         <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm leading-relaxed text-slate-600">
           O plano completo soma {totalCalories} kcal e {totalProtein} g de proteína. Aqui entram somente as refeições marcadas hoje.
         </p>
-      </Card>
+      </Card> : null}
 
       <section className="space-y-3">
         <div className="flex items-end justify-between gap-3">
           <h2 className="section-title">Refeições</h2>
-          <span className="text-xs font-bold text-slate-500">{completedMeals.length}/{data.meals.length} concluídas</span>
+          <span className="text-xs font-bold text-slate-500">
+            {completedRequiredMeals.length}/{requiredMeals.length} essenciais
+          </span>
         </div>
-        {data.meals.map((meal) => (
+        {dismissedMealCount > 0 ? (
+          <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold leading-relaxed text-slate-500">
+            {dismissedMealCount} {dismissedMealCount === 1 ? 'refeição dispensada' : 'refeições dispensadas'} hoje por não se aplicar a este dia.
+          </p>
+        ) : null}
+        {applicableMeals.map((meal) => (
           <MealCard
             meal={meal}
             key={meal.id}
             done={Boolean(todayChecks.meals[meal.id])}
+            showMacros={!flexiblePlan}
             onToggle={() => onToggleMeal(meal.id)}
           />
         ))}
       </section>
 
+      {assignedPlan ? <AssignedNutritionPlanGuidance plan={assignedPlan} /> : null}
+
+      {!assignedPlan ? (
+        <>
       <Card>
         <div className="flex items-center gap-2">
           <Info className="text-teal-700" size={20} aria-hidden="true" />
-          <h2 className="section-title">Regras simples</h2>
+          <h2 className="section-title">Como usar esta estimativa</h2>
         </div>
         <ul className="mt-4 space-y-2 text-sm leading-relaxed text-slate-700">
-          {cuttingRules.map((rule) => (
+          {initialPlanRules.map((rule) => (
             <li className="flex gap-2" key={rule}>
               <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-600" />
               <span>{rule}</span>
@@ -131,15 +176,15 @@ export function Diet({ data, todayChecks, onToggleMeal }: DietProps) {
 
       <Card>
         <div className="flex items-center gap-2">
-          <Beef className="text-rose-700" size={20} aria-hidden="true" />
-          <h2 className="section-title">Alimentos base</h2>
+          <Leaf className="text-rose-700" size={20} aria-hidden="true" />
+          <h2 className="section-title">Alimentos compatíveis</h2>
         </div>
         <div className="mt-4 space-y-4">
           {(['proteins', 'carbs', 'fats'] as const).map((group) => (
             <div key={group}>
               <h3 className="text-sm font-bold text-slate-900">{foodLabels[group]}</h3>
               <div className="mt-2 flex flex-wrap gap-2">
-                {foods
+                {compatibleFoods
                   .filter((food) => food.group === group)
                   .map((food) => (
                     <span className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700" key={`${group}-${food.name}`}>
@@ -147,6 +192,9 @@ export function Diet({ data, todayChecks, onToggleMeal }: DietProps) {
                       {food.note ? <span className="block pt-1 text-xs font-medium text-slate-500">{food.note}</span> : null}
                     </span>
                   ))}
+                {!compatibleFoods.some((food) => food.group === group) ? (
+                  <span className="text-sm font-medium text-slate-500">Sem sugestão automática para este grupo.</span>
+                ) : null}
               </div>
             </div>
           ))}
@@ -154,7 +202,7 @@ export function Diet({ data, todayChecks, onToggleMeal }: DietProps) {
       </Card>
 
       <Card>
-        <h2 className="section-title">Sugestões automáticas</h2>
+        <h2 className="section-title">Observações automáticas</h2>
         <ul className="mt-4 space-y-2 text-sm leading-relaxed text-slate-700">
           {suggestions.map((suggestion) => (
             <li className="flex gap-2" key={suggestion}>
@@ -164,6 +212,8 @@ export function Diet({ data, todayChecks, onToggleMeal }: DietProps) {
           ))}
         </ul>
       </Card>
+        </>
+      ) : null}
     </div>
   );
 }

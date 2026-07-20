@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from './auth/authContext';
 import { BottomNav } from './components/BottomNav';
+import { Onboarding, type OnboardingProfile } from './components/Onboarding';
 import { RankLevelUpModal } from './components/RankLevelUpModal';
 import { defaultGoals, defaultMeals, defaultProfile } from './data/dietPlan';
 import { getTodayPlan } from './data/workoutPlan';
@@ -24,7 +26,9 @@ import type {
   WeekPlanItem,
   Workout as WorkoutPlan,
 } from './types';
+import { hasAssignedNutritionPlan, normalizeAssignedNutritionPlan } from './utils/assignedNutritionPlan';
 import { calculateDynamicGoals, calculateMealPlan } from './utils/dietCalculator';
+import { getActiveMealDay, getRequiredMeals, isMealApplicable } from './utils/meals';
 import { createDefaultNotificationSettings, syncPushSubscriptionForCurrentUser } from './utils/notifications';
 import {
   applyRankInactivityDecay,
@@ -136,6 +140,7 @@ function normalizeAppData(value: unknown): AppData {
       ...goals,
     },
     meals: Array.isArray(value.meals) ? (value.meals as Meal[]) : fallback.meals,
+    assignedNutritionPlan: normalizeAssignedNutritionPlan(value.assignedNutritionPlan),
     notifications: {
       ...fallback.notifications,
       ...notifications,
@@ -153,8 +158,9 @@ function normalizeAppData(value: unknown): AppData {
   const storedTrainingDays = typeof profile.trainingDays === 'number' ? profile.trainingDays : fallback.profile.trainingDays;
   const storedCardioDays = typeof profile.cardioDays === 'number' ? profile.cardioDays : fallback.profile.cardioDays;
   if (
-    storedTrainingDays !== normalizedWorkoutData.profile.trainingDays ||
-    storedCardioDays !== normalizedWorkoutData.profile.cardioDays
+    !hasAssignedNutritionPlan(normalizedWorkoutData.assignedNutritionPlan) &&
+    (storedTrainingDays !== normalizedWorkoutData.profile.trainingDays ||
+      storedCardioDays !== normalizedWorkoutData.profile.cardioDays)
   ) {
     const scheduleGoals = calculateDynamicGoals(normalizedWorkoutData.profile);
     normalizedWorkoutData = {
@@ -186,6 +192,7 @@ function normalizeAppData(value: unknown): AppData {
 }
 
 function App() {
+  const { markOnboardingComplete, user } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTab>(getInitialTab);
   const [dateKey, setDateKey] = useState(getLocalDateKey);
   const [storedData, setStoredData] = useLocalStorage<unknown>(APP_STORAGE_KEY, getInitialStoredData);
@@ -198,7 +205,11 @@ function App() {
   const lastObservedCelebrationRef = useRef(data.rank.lastCelebratedLevelId);
   const pendingRankCelebrationRef = useRef<RankLevel | null>(null);
   const notifications = data.notifications ?? createDefaultNotificationSettings();
-  const cloudSync = useCloudSync(data);
+  const onboardingRequired =
+    (import.meta.env.DEV && new URLSearchParams(window.location.search).has('onboarding-preview')) ||
+    data.profile.onboardingCompleted === false ||
+    (user?.user_metadata?.requires_onboarding === true && data.profile.onboardingCompleted !== true);
+  const cloudSync = useCloudSync(data, !onboardingRequired);
   const todayPlan = getTodayPlan(data.weekPlan);
   const todayChecks = normalizeDailyChecks(data.dailyChecks[dateKey], data.meals);
 
@@ -216,13 +227,15 @@ function App() {
     const storedRank = isRecord(storedData) ? storedData.rank : undefined;
     const storedWeekPlan = isRecord(storedData) ? storedData.weekPlan : undefined;
     const storedProfile = isRecord(storedData) && isRecord(storedData.profile) ? storedData.profile : undefined;
+    const storedNutritionPlan = isRecord(storedData) ? storedData.assignedNutritionPlan : undefined;
     if (
       !isRecord(storedData) ||
       storedData.schemaVersion !== 5 ||
       JSON.stringify(storedRank) !== JSON.stringify(data.rank) ||
       JSON.stringify(storedWeekPlan) !== JSON.stringify(data.weekPlan) ||
       storedProfile?.trainingDays !== data.profile.trainingDays ||
-      storedProfile?.cardioDays !== data.profile.cardioDays
+      storedProfile?.cardioDays !== data.profile.cardioDays ||
+      JSON.stringify(storedNutritionPlan) !== JSON.stringify(data.assignedNutritionPlan)
     ) {
       setStoredData(data);
     }
@@ -366,10 +379,17 @@ function App() {
   const toggleMeal = (mealId: string) => {
     const actionDateKey = getActionDateKey();
     updateData((current) => {
+      const activeMealDay = getActiveMealDay(getTodayPlan(current.weekPlan).activityType);
+      const selectedMeal = current.meals.find((meal) => meal.id === mealId);
+      if (!selectedMeal || !isMealApplicable(selectedMeal, activeMealDay)) {
+        return current;
+      }
+
       const checks = normalizeDailyChecks(current.dailyChecks[actionDateKey], current.meals);
       const nextMeals = { ...checks.meals, [mealId]: !checks.meals[mealId] };
-      const completedMeals = current.meals.filter((meal) => nextMeals[meal.id]).length;
-      const nutritionCompleted = current.meals.length > 0 && completedMeals / current.meals.length >= 0.8;
+      const requiredMeals = getRequiredMeals(current.meals, activeMealDay);
+      const completedMeals = requiredMeals.filter((meal) => nextMeals[meal.id]).length;
+      const nutritionCompleted = requiredMeals.length > 0 && completedMeals / requiredMeals.length >= 0.8;
       let rank = current.rank;
 
       if (nutritionCompleted && actionDateKey >= rank.startedOn) {
@@ -516,21 +536,31 @@ function App() {
   };
 
   const updateGoals = (goals: Partial<Goals>) => {
-    updateData((current) => ({
-      ...current,
-      goals: {
-        ...current.goals,
-        ...goals,
-      },
-      meals: calculateMealPlan(current.profile, { ...current.goals, ...goals }),
-    }));
+    updateData((current) => {
+      if (hasAssignedNutritionPlan(current.assignedNutritionPlan)) {
+        return current;
+      }
+
+      return {
+        ...current,
+        goals: {
+          ...current.goals,
+          ...goals,
+        },
+        meals: calculateMealPlan(current.profile, { ...current.goals, ...goals }),
+      };
+    });
   };
 
   const updateProfile = (profile: Partial<Profile>) => {
     updateData((current) => {
+      const hasAssignedPlan = hasAssignedNutritionPlan(current.assignedNutritionPlan);
       const nextProfile = {
         ...current.profile,
         ...profile,
+        ...(hasAssignedPlan
+          ? { preferredFoods: current.profile.preferredFoods, avoidedFoods: current.profile.avoidedFoods }
+          : {}),
         theme: 'dark' as const,
       };
       const nextGoals = calculateDynamicGoals(nextProfile);
@@ -538,11 +568,34 @@ function App() {
       return {
         ...current,
         profile: nextProfile,
-        goals: nextGoals,
-        meals: calculateMealPlan(nextProfile, nextGoals),
+        goals: hasAssignedPlan ? current.goals : nextGoals,
+        meals: hasAssignedPlan ? current.meals : calculateMealPlan(nextProfile, nextGoals),
         notifications: current.notifications ?? createDefaultNotificationSettings(),
       };
     });
+  };
+
+  const completeOnboarding = async (profile: OnboardingProfile) => {
+    const hasAssignedPlan = hasAssignedNutritionPlan(data.assignedNutritionPlan);
+    const nextProfile: Profile = {
+      ...data.profile,
+      ...profile,
+      ...(hasAssignedPlan
+        ? { preferredFoods: data.profile.preferredFoods, avoidedFoods: data.profile.avoidedFoods }
+        : {}),
+      onboardingCompleted: true,
+      theme: 'dark',
+    };
+    const nextGoals = calculateDynamicGoals(nextProfile);
+    const completedData = normalizeAppData({
+      ...data,
+      profile: nextProfile,
+      goals: hasAssignedPlan ? data.goals : nextGoals,
+      meals: hasAssignedPlan ? data.meals : calculateMealPlan(nextProfile, nextGoals),
+    });
+
+    const persistedData = await markOnboardingComplete(completedData);
+    setStoredData(normalizeAppData(persistedData));
   };
 
   const updateNotifications = (notificationsUpdate: Partial<AppData['notifications']>) => {
@@ -571,14 +624,15 @@ function App() {
         trainingDays: counts.workout,
         cardioDays: counts.cardio,
       };
+      const hasAssignedPlan = hasAssignedNutritionPlan(current.assignedNutritionPlan);
       const nextGoals = calculateDynamicGoals(nextProfile);
 
       return {
         ...current,
         weekPlan,
         profile: nextProfile,
-        goals: nextGoals,
-        meals: calculateMealPlan(nextProfile, nextGoals),
+        goals: hasAssignedPlan ? current.goals : nextGoals,
+        meals: hasAssignedPlan ? current.meals : calculateMealPlan(nextProfile, nextGoals),
       };
     });
   };
@@ -609,7 +663,23 @@ function App() {
   const resetData = () => {
     const confirmed = window.confirm('Reiniciar todos os dados locais, sessões e rank do Ana Fit Planner?');
     if (confirmed) {
-      const initialData = createInitialData(data.profile.name);
+      const defaultInitialData = createInitialData(data.profile.name);
+      const initialData = hasAssignedNutritionPlan(data.assignedNutritionPlan)
+        ? {
+            ...defaultInitialData,
+            profile: {
+              ...defaultInitialData.profile,
+              preferredFoods: data.profile.preferredFoods,
+              avoidedFoods: data.profile.avoidedFoods,
+            },
+            goals: data.goals,
+            meals: data.meals,
+            assignedNutritionPlan: data.assignedNutritionPlan,
+            dailyChecks: {
+              [getLocalDateKey()]: createDailyChecks(data.meals),
+            },
+          }
+        : defaultInitialData;
       lastObservedCelebrationRef.current = initialData.rank.lastCelebratedLevelId;
       pendingRankCelebrationRef.current = null;
       setRankCelebration(null);
@@ -617,6 +687,10 @@ function App() {
       changeTab('today');
     }
   };
+
+  if (onboardingRequired) {
+    return <Onboarding profile={data.profile} onComplete={completeOnboarding} />;
+  }
 
   return (
     <>

@@ -72,6 +72,91 @@ create trigger anfit_user_app_data_set_updated_at
 before update on public.anfit_user_app_data
 for each row execute procedure public.anfit_set_updated_at();
 
+-- Assigned nutrition is server-managed. Once a row has a plan, an authenticated
+-- client may keep syncing the rest of its AppData blob, but cannot replace the
+-- plan with an older local cache. SQL Editor and service-role maintenance remain
+-- able to assign or revise a plan.
+create or replace function public.anfit_preserve_assigned_nutrition()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  previous_profile jsonb;
+  incoming_profile jsonb;
+begin
+  if coalesce(auth.role(), '') <> 'authenticated'
+     or not (old.data ? 'assignedNutritionPlan') then
+    return new;
+  end if;
+
+  if pg_catalog.jsonb_typeof(new.data) <> 'object' then
+    raise exception 'AppData must remain a JSON object while an assigned nutrition plan is active.'
+      using errcode = '22023';
+  end if;
+
+  if old.data ? 'assignedNutritionPlan' then
+    new.data := pg_catalog.jsonb_set(
+      new.data,
+      '{assignedNutritionPlan}',
+      old.data -> 'assignedNutritionPlan',
+      true
+    );
+  end if;
+
+  if old.data ? 'goals' then
+    new.data := pg_catalog.jsonb_set(new.data, '{goals}', old.data -> 'goals', true);
+  else
+    new.data := new.data - 'goals';
+  end if;
+
+  if old.data ? 'meals' then
+    new.data := pg_catalog.jsonb_set(new.data, '{meals}', old.data -> 'meals', true);
+  else
+    new.data := new.data - 'meals';
+  end if;
+
+  previous_profile := case
+    when pg_catalog.jsonb_typeof(old.data -> 'profile') = 'object' then old.data -> 'profile'
+    else '{}'::jsonb
+  end;
+  incoming_profile := case
+    when pg_catalog.jsonb_typeof(new.data -> 'profile') = 'object' then new.data -> 'profile'
+    else '{}'::jsonb
+  end;
+
+  if previous_profile ? 'preferredFoods' then
+    incoming_profile := pg_catalog.jsonb_set(
+      incoming_profile,
+      '{preferredFoods}',
+      previous_profile -> 'preferredFoods',
+      true
+    );
+  else
+    incoming_profile := incoming_profile - 'preferredFoods';
+  end if;
+
+  if previous_profile ? 'avoidedFoods' then
+    incoming_profile := pg_catalog.jsonb_set(
+      incoming_profile,
+      '{avoidedFoods}',
+      previous_profile -> 'avoidedFoods',
+      true
+    );
+  else
+    incoming_profile := incoming_profile - 'avoidedFoods';
+  end if;
+
+  new.data := pg_catalog.jsonb_set(new.data, '{profile}', incoming_profile, true);
+  return new;
+end;
+$$;
+
+drop trigger if exists anfit_user_app_data_preserve_assigned_nutrition on public.anfit_user_app_data;
+create trigger anfit_user_app_data_preserve_assigned_nutrition
+before update on public.anfit_user_app_data
+for each row execute procedure public.anfit_preserve_assigned_nutrition();
+
 create or replace function public.anfit_handle_new_user()
 returns trigger
 language plpgsql

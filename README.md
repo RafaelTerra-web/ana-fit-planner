@@ -1,6 +1,6 @@
 # Ana Fit Planner
 
-PWA mobile-first para acompanhar treino, dieta, cardio, hábitos e progresso corporal durante um cutting sustentável.
+PWA mobile-first para acompanhar treino, alimentação, cardio, hábitos e progresso corporal em perfis individuais.
 
 ## Experiência de treino
 
@@ -15,9 +15,9 @@ PWA mobile-first para acompanhar treino, dieta, cardio, hábitos e progresso cor
 
 ## Ranks
 
-A jornada possui 24 níveis: três divisões (`III → II → I`) em cada um dos oito ranks:
+A jornada possui 24 níveis: três divisões (`I → II → III`) em cada um dos oito ranks:
 
-| Rank | Divisão III | Divisão II | Divisão I |
+| Rank | Divisão I | Divisão II | Divisão III |
 | --- | ---: | ---: | ---: |
 | Ferro | 0 XP | 300 XP | 700 XP |
 | Bronze | 1.200 XP | 1.800 XP | 2.500 XP |
@@ -75,6 +75,8 @@ O `netlify.toml` já configura a aplicação como SPA.
 
 O app aceita contas individuais por e-mail e senha e mantém a sessão salva por padrão. Em **Ajustes**, cada usuário pode optar por esquecer o login depois de 7, 30 ou 90 dias sem uso. Perfil, treinos, séries, dieta, progresso e rank ficam em um cache local separado por usuário e na tabela `anfit_user_app_data` como cópia vinculada à conta.
 
+Novas contas passam por um onboarding de objetivo, medidas e preferências alimentares. Planos nutricionais individuais também podem ser atribuídos de forma administrativa: ficam vinculados à conta no Supabase e protegidos contra a sobrescrita por um cache antigo do aparelho.
+
 1. Crie um projeto Supabase e execute [`supabase/schema.sql`](supabase/schema.sql) no SQL Editor.
 2. Em **Authentication > URL Configuration**, defina `https://anfit.netlify.app` como Site URL e Redirect URL.
 3. Em **Authentication > Providers > Email**, permita novos cadastros e mantenha a confirmação de e-mail habilitada. Em produção, configure também rate limit e CAPTCHA para reduzir abuso.
@@ -87,6 +89,14 @@ npm run invite:ana
 ```
 
 A chave secreta é usada somente pelo script administrativo e nunca deve receber o prefixo `VITE_`. O convite marca a conta com `force_password_change`; ao abrir o link, a usuária precisa criar uma nova senha antes que o app leia ou sincronize os dados do aparelho.
+
+Para atribuir um plano individual, mantenha o preset JSON fora do Git (a pasta `scripts/data/` é ignorada) e valide primeiro:
+
+```bash
+npm run assign:nutrition -- --plan-file scripts/data/plano.json --validate-only
+```
+
+O comando sem `--apply` faz apenas uma prévia e mostra os quatro valores de confirmação exigidos pela gravação. O script localiza uma única conta pelo parâmetro `--email`, mescla somente dieta, metas e preferências alimentares e verifica que treino, progresso, rank e histórico não mudaram.
 
 No primeiro acesso feito pelo próprio iPhone, se ainda não houver dados na nuvem, a cópia `v5` (ou a antiga `v4`) do aparelho é enviada automaticamente. Se a nuvem já tiver dados, ela é restaurada antes da abertura do aplicativo.
 

@@ -3,6 +3,7 @@ import { Card } from '../components/Card';
 import { RankCard } from '../components/RankCard';
 import { getWorkoutById } from '../data/workoutPlan';
 import type { AppData, AppTab, DailyChecks, WeekPlanItem } from '../types';
+import { getActiveMealDay, getRequiredMeals } from '../utils/meals';
 import { getWorkoutSessionId, getWorkoutSessionProgress } from '../utils/workoutSessions';
 
 type TodayProps = {
@@ -61,8 +62,10 @@ export function Today({ data, dateKey, todayChecks, todayPlan, onSelectTab, onSt
   const todayWorkout = getWorkoutById(todayPlan.workoutId, data.workouts);
   const session = todayWorkout ? data.workoutSessions[getWorkoutSessionId(todayWorkout.id, dateKey)] : undefined;
   const sessionProgress = session ? getWorkoutSessionProgress(session) : null;
-  const mealsCompleted = data.meals.filter((meal) => todayChecks.meals[meal.id]).length;
-  const nextMeal = data.meals.find((meal) => !todayChecks.meals[meal.id]);
+  const activeMealDay = getActiveMealDay(todayPlan.activityType);
+  const requiredMeals = getRequiredMeals(data.meals, activeMealDay);
+  const mealsCompleted = requiredMeals.filter((meal) => todayChecks.meals[meal.id]).length;
+  const nextMeal = requiredMeals.find((meal) => !todayChecks.meals[meal.id]);
   const dateLabel = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(now);
   const isCardioDay = todayPlan.activityType === 'cardio';
   const isRestDay = todayPlan.activityType === 'rest';
@@ -168,7 +171,7 @@ export function Today({ data, dateKey, todayChecks, todayPlan, onSelectTab, onSt
               <Utensils size={18} aria-hidden="true" />
             </span>
             <span className="mt-3 block text-sm font-extrabold text-slate-100">Refeições</span>
-            <span className="mt-1 block text-xs font-semibold text-slate-500">{mealsCompleted}/{data.meals.length} concluídas</span>
+            <span className="mt-1 block text-xs font-semibold text-slate-500">{mealsCompleted}/{requiredMeals.length} essenciais</span>
           </button>
         </div>
       </section>

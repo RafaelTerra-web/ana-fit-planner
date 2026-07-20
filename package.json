@@ -3,13 +3,14 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "PWA mobile-first para dieta de cutting e treino com foco em glúteos.",
+  "description": "PWA mobile-first para organizar treinos, alimentação, hábitos e evolução.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "invite:ana": "node scripts/invite-ana.mjs"
+    "invite:ana": "node scripts/invite-ana.mjs",
+    "assign:nutrition": "node scripts/assign-nutrition-plan.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.9",

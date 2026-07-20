@@ -4,7 +4,16 @@ import { useAuth, type ForgetAfterDays } from '../auth/authContext';
 import { Card } from '../components/Card';
 import { WeekPlanEditor } from '../components/WeekPlanEditor';
 import type { CloudSyncStatus } from '../hooks/useCloudSync';
-import type { AppData, Goals, NotificationSettings, Profile, Reminder, WeekPlanItem } from '../types';
+import type {
+  AppData,
+  EatingStyle,
+  FitnessObjective,
+  Goals,
+  NotificationSettings,
+  Profile,
+  Reminder,
+  WeekPlanItem,
+} from '../types';
 import { estimateProtein } from '../utils/calculations';
 import { calculateDynamicGoals } from '../utils/dietCalculator';
 import { enablePushNotifications, getNotificationSupportMessage, showTestNotification } from '../utils/notifications';
@@ -30,10 +39,38 @@ const forgetOptions: Array<{ value: ForgetAfterDays; label: string }> = [
   { value: 90, label: 'Após 90 dias sem uso' },
 ];
 
+const objectiveOptions: Array<{ value: FitnessObjective; label: string }> = [
+  { value: 'body-recomposition', label: 'Recomposição corporal' },
+  { value: 'fat-loss', label: 'Redução de gordura' },
+  { value: 'muscle-gain', label: 'Ganho de massa' },
+  { value: 'performance', label: 'Performance' },
+];
+
+const eatingStyleOptions: Array<{ value: EatingStyle; label: string }> = [
+  { value: 'omnivore', label: 'Onívora' },
+  { value: 'flexitarian', label: 'Flexitariana' },
+  { value: 'vegetarian', label: 'Vegetariana' },
+  { value: 'vegan', label: 'Vegana' },
+  { value: 'pescatarian', label: 'Pescetariana' },
+];
+
+const mealCountOptions = [3, 4, 5, 6] as const;
+
 export function Settings({ data, onProfileChange, onGoalsChange, onNotificationsChange, onWeekPlanChange, onResetData, cloudSync }: SettingsProps) {
   const [notificationMessage, setNotificationMessage] = useState('');
+  const assignedPlan = data.assignedNutritionPlan;
   const { user, cloudEnabled, migrationResult, forgetAfterDays, setForgetAfterDays, signOut } = useAuth();
-  const proteinRange = estimateProtein(data.profile.weightKg);
+  const assignedProteinRange = assignedPlan?.targets?.proteinGrams;
+  const hasAssignedProteinRange =
+    typeof assignedProteinRange?.min === 'number' &&
+    Number.isFinite(assignedProteinRange.min) &&
+    typeof assignedProteinRange.max === 'number' &&
+    Number.isFinite(assignedProteinRange.max);
+  const proteinRange = assignedPlan
+    ? hasAssignedProteinRange
+      ? { low: assignedProteinRange.min, high: assignedProteinRange.max }
+      : null
+    : estimateProtein(data.profile.weightKg);
   const suggestedGoals = calculateDynamicGoals(data.profile);
   const supportMessage = getNotificationSupportMessage();
   const syncMessage =
@@ -146,6 +183,21 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
 
       <WeekPlanEditor weekPlan={data.weekPlan} workouts={data.workouts} onChange={onWeekPlanChange} />
 
+      {assignedPlan ? (
+        <Card className="border-amber-300/20 bg-amber-300/[0.06]">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 shrink-0 text-amber-300" size={21} aria-hidden="true" />
+            <div>
+              <h2 className="section-title">Plano atribuído</h2>
+              <p className="mt-1 text-sm font-semibold text-slate-200">{assignedPlan.title}</p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                Metas e preferências alimentares ficam protegidas. Faça ajustes com responsável e profissional de saúde.
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       <Card>
         <h2 className="section-title">Perfil</h2>
         <div className="mt-4 grid gap-3">
@@ -173,16 +225,81 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
               />
             </label>
           </div>
+          {!assignedPlan ? (
+            <div className="mt-2 grid gap-3 border-t border-white/10 pt-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-200">Preferências do plano</h3>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  Atualize o que você definiu ao criar sua conta. Essas escolhas ajudam a personalizar suas sugestões.
+                </p>
+              </div>
+              <label className="block space-y-1 text-sm font-medium text-slate-700" htmlFor="profile-objective">
+                <span>Objetivo atual</span>
+                <select
+                  className="input"
+                  id="profile-objective"
+                  value={data.profile.objective ?? ''}
+                  onChange={(event) => onProfileChange({ objective: event.target.value as FitnessObjective })}
+                >
+                  <option value="" disabled>Escolha seu objetivo</option>
+                  {objectiveOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1 text-sm font-medium text-slate-700" htmlFor="profile-eating-style">
+                <span>Estilo alimentar</span>
+                <select
+                  className="input"
+                  id="profile-eating-style"
+                  value={data.profile.eatingStyle ?? ''}
+                  onChange={(event) => onProfileChange({ eatingStyle: event.target.value as EatingStyle })}
+                >
+                  <option value="" disabled>Escolha seu estilo alimentar</option>
+                  {eatingStyleOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <fieldset>
+                <legend className="text-sm font-medium text-slate-700">Refeições por dia</legend>
+                <div className="mt-2 grid grid-cols-4 gap-2">
+                  {mealCountOptions.map((amount) => {
+                    const selected = data.profile.mealsPerDay === amount;
+
+                    return (
+                      <button
+                        className={`min-h-11 rounded-xl border px-2 text-sm font-bold transition ${
+                          selected
+                            ? 'border-lime-300/50 bg-lime-300/10 text-lime-100'
+                            : 'border-white/10 bg-white/[0.035] text-slate-400'
+                        }`}
+                        type="button"
+                        key={amount}
+                        aria-pressed={selected}
+                        onClick={() => onProfileChange({ mealsPerDay: amount })}
+                      >
+                        {amount}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            </div>
+          ) : null}
         </div>
         <p className="mt-3 text-xs font-semibold leading-relaxed text-slate-500">
           A frequência de treino e cardio é calculada automaticamente pela rotina semanal.
         </p>
-        <p className="mt-4 rounded-lg bg-teal-50 p-3 text-sm font-medium text-teal-800">
-          Proteína estimada para o peso atual: {proteinRange.low} a {proteinRange.high} g/dia.
-        </p>
+        {proteinRange ? (
+          <p className="mt-4 rounded-lg bg-teal-50 p-3 text-sm font-medium text-teal-800">
+            {assignedPlan ? 'Faixa de proteína do plano' : 'Proteína estimada para o peso atual'}: {proteinRange.low} a{' '}
+            {proteinRange.high} g/dia.
+          </p>
+        ) : null}
       </Card>
 
-      <Card>
+      {!assignedPlan ? <Card>
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="section-title">Metas e dieta dinâmica</h2>
@@ -236,7 +353,7 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
         <button className="secondary-button mt-3 w-full" type="button" onClick={() => onGoalsChange(suggestedGoals)}>
           Recalcular dieta com o perfil atual
         </button>
-      </Card>
+      </Card> : null}
 
       <Card>
         <div className="flex items-center gap-2">
@@ -283,7 +400,7 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
         </p>
       </Card>
 
-      <Card>
+      {!assignedPlan ? <Card>
         <h2 className="section-title">Alimentos</h2>
         <div className="mt-4 space-y-3">
           <label className="block space-y-1 text-sm font-medium text-slate-700">
@@ -317,7 +434,7 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
             />
           </label>
         </div>
-      </Card>
+      </Card> : null}
 
       <div className="grid grid-cols-2 gap-3">
         <button className="secondary-button" type="button" onClick={onResetData}>

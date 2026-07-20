@@ -9,5 +9,8 @@ vite.config.d.ts
 .env.*
 !.env.example
 
+# Presets nutricionais pessoais devem permanecer somente no ambiente local.
+scripts/data/
+
 # Local Netlify folder
 .netlify

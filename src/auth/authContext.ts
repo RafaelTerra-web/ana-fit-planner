@@ -1,5 +1,6 @@
 import type { User } from '@supabase/supabase-js';
 import { createContext, useContext } from 'react';
+import type { AppData } from '../types';
 
 export type MigrationResult = 'downloaded' | 'uploaded' | 'empty';
 export type ForgetAfterDays = 7 | 30 | 90 | null;
@@ -11,6 +12,7 @@ export type AuthContextValue = {
   migrationResult: MigrationResult;
   forgetAfterDays: ForgetAfterDays;
   setForgetAfterDays: (days: ForgetAfterDays) => void;
+  markOnboardingComplete: (data: AppData) => Promise<AppData>;
   signOut: () => Promise<void>;
 };
 
