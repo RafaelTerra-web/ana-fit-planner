@@ -320,7 +320,12 @@ function normalizeWeekPlan(input: WeekPlanItem[] | undefined) {
 }
 
 export function normalizeWorkoutData(data: AppData): AppData {
-  const weekPlan = normalizeWeekPlan(data.weekPlan);
+  const workouts = normalizeWorkouts(data.workouts);
+  const workoutsById = new Map(workouts.map((workout) => [workout.id, workout]));
+  const weekPlan = normalizeWeekPlan(data.weekPlan).map((item) => {
+    const workout = item.workoutId ? workoutsById.get(item.workoutId) : undefined;
+    return workout ? { ...item, title: workout.title } : item;
+  });
   const activityCounts = getWeeklyActivityCounts(weekPlan);
 
   return {
@@ -330,7 +335,7 @@ export function normalizeWorkoutData(data: AppData): AppData {
       trainingDays: activityCounts.workout,
       cardioDays: activityCounts.cardio,
     },
-    workouts: normalizeWorkouts(data.workouts),
+    workouts,
     weekPlan,
   };
 }

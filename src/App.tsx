@@ -645,7 +645,17 @@ function App() {
   };
 
   const updateWorkouts = (workouts: WorkoutPlan[]) => {
-    updateData((current) => ({ ...current, workouts }));
+    updateData((current) => {
+      const workoutsById = new Map(workouts.map((workout) => [workout.id, workout]));
+      return {
+        ...current,
+        workouts,
+        weekPlan: current.weekPlan.map((item) => {
+          const workout = item.workoutId ? workoutsById.get(item.workoutId) : undefined;
+          return workout ? { ...item, title: workout.title } : item;
+        }),
+      };
+    });
   };
 
   const updateWeekPlan = (weekPlan: WeekPlanItem[]) => {
@@ -755,8 +765,6 @@ function App() {
             onFinishSession={finishWorkoutSession}
             onStartSession={startWorkoutSession}
             onToggleCheck={toggleCheck}
-            onWeekPlanChange={updateWeekPlan}
-            onWorkoutsChange={updateWorkouts}
           />
         ) : null}
         {activeTab === 'diet' ? (
@@ -770,6 +778,7 @@ function App() {
             onGoalsChange={updateGoals}
             onNotificationsChange={updateNotifications}
             onWeekPlanChange={updateWeekPlan}
+            onWorkoutsChange={updateWorkouts}
             onResetData={resetData}
             cloudSync={cloudSync}
           />
