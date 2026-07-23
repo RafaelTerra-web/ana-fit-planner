@@ -580,7 +580,7 @@ export function WorkoutPlanManager({ data, onWeekPlanChange, onWorkoutsChange }:
   return (
     <>
       <Card className="overflow-hidden">
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-3" data-tour="settings-workouts">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-lime-300/10 text-lime-200">
             <Dumbbell size={22} aria-hidden="true" />
           </span>

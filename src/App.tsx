@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './auth/authContext';
 import { BottomNav } from './components/BottomNav';
+import { AppTour } from './components/AppTour';
 import { Onboarding, type OnboardingProfile } from './components/Onboarding';
 import { RankLevelUpModal } from './components/RankLevelUpModal';
 import { defaultGoals, defaultMeals, defaultProfile } from './data/dietPlan';
@@ -224,6 +225,7 @@ function App() {
     return rank === normalizedData.rank ? normalizedData : { ...normalizedData, rank };
   }, [normalizedData]);
   const [rankCelebration, setRankCelebration] = useState<RankLevel | null>(null);
+  const [showAppTour, setShowAppTour] = useState(false);
   const lastObservedCelebrationRef = useRef(data.rank.lastCelebratedLevelId);
   const pendingRankCelebrationRef = useRef<RankLevel | null>(null);
   const notifications = data.notifications ?? createDefaultNotificationSettings();
@@ -620,6 +622,7 @@ function App() {
 
     const persistedData = await markOnboardingComplete(completedData);
     setStoredData(normalizeAppData(persistedData));
+    setShowAppTour(true);
   };
 
   const updateNotifications = (notificationsUpdate: Partial<AppData['notifications']>) => {
@@ -780,6 +783,7 @@ function App() {
             onWeekPlanChange={updateWeekPlan}
             onWorkoutsChange={updateWorkouts}
             onResetData={resetData}
+            onOpenTutorial={() => setShowAppTour(true)}
             cloudSync={cloudSync}
           />
         ) : null}
@@ -787,6 +791,9 @@ function App() {
         <BottomNav activeTab={activeTab} onChange={changeTab} />
       </main>
       {rankCelebration ? <RankLevelUpModal level={rankCelebration} onDismiss={() => setRankCelebration(null)} /> : null}
+      {showAppTour ? (
+        <AppTour activeTab={activeTab} onClose={() => setShowAppTour(false)} onTabChange={changeTab} />
+      ) : null}
     </>
   );
 }

@@ -88,7 +88,7 @@ export function WeekPlanEditor({ onChange, onCreateWorkoutForDay, weekPlan, work
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3" data-tour="settings-week">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-300/10 text-teal-200">
           <CalendarRange size={22} aria-hidden="true" />
         </span>

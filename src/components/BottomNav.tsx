@@ -16,7 +16,7 @@ const items: Array<{ id: AppTab; label: string; icon: typeof Home }> = [
 
 export function BottomNav({ activeTab, onChange }: BottomNavProps) {
   return (
-    <nav className="bottom-nav fixed inset-x-3 z-30" aria-label="Navegação principal">
+    <nav className="bottom-nav fixed inset-x-3 z-30" aria-label="Navegação principal" data-tour="bottom-nav">
       <div className="bottom-nav-shell mx-auto grid max-w-md grid-cols-5 gap-1 p-1.5">
         {items.map((item) => {
           const Icon = item.icon;

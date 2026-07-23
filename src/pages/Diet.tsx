@@ -134,7 +134,7 @@ export function Diet({ data, todayChecks, onToggleMeal, onPortionsChange }: Diet
       </Card> : null}
 
       <section className="space-y-3">
-        <div className="flex items-end justify-between gap-3">
+        <div className="flex items-end justify-between gap-3" data-tour="diet-meals">
           <h2 className="section-title">Refeições</h2>
           <span className="text-xs font-bold text-slate-500">
             {completedRequiredMeals.length}/{requiredMeals.length} essenciais

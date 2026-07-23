@@ -137,23 +137,27 @@ export function Progress({ data, onAddProgress }: ProgressProps) {
         <p className="mt-2 text-sm leading-relaxed text-slate-600">Consistência primeiro. Medidas e cargas ajudam a enxergar a tendência.</p>
       </header>
 
-      <RankCard rank={data.rank} variant="hero" />
-
-      <details className="rank-details overflow-hidden rounded-[1.35rem] border border-white/10 bg-slate-900/65">
-        <summary className="flex cursor-pointer list-none items-center gap-3 p-4 font-extrabold text-slate-100">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-300/10 text-amber-200">
-            <Trophy size={19} aria-hidden="true" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block">Ver os 24 ranks</span>
-            <span className="mt-0.5 block text-xs font-semibold text-slate-500">Ferro I até Olympia III</span>
-          </span>
-          <ChevronDown className="manage-chevron text-slate-500 transition" size={19} aria-hidden="true" />
-        </summary>
-        <div className="border-t border-white/10 p-4">
-          <RankJourney rank={data.rank} />
+      <div className="space-y-3">
+        <div data-tour="progress-rank">
+          <RankCard rank={data.rank} variant="hero" />
         </div>
-      </details>
+
+        <details className="rank-details overflow-hidden rounded-[1.35rem] border border-white/10 bg-slate-900/65">
+          <summary className="flex cursor-pointer list-none items-center gap-3 p-4 font-extrabold text-slate-100">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-300/10 text-amber-200">
+              <Trophy size={19} aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block">Ver os 24 ranks</span>
+              <span className="mt-0.5 block text-xs font-semibold text-slate-500">Ferro I até Olympia III</span>
+            </span>
+            <ChevronDown className="manage-chevron text-slate-500 transition" size={19} aria-hidden="true" />
+          </summary>
+          <div className="border-t border-white/10 p-4">
+            <RankJourney rank={data.rank} />
+          </div>
+        </details>
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         <Card className="p-3">

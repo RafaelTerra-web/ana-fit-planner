@@ -85,7 +85,7 @@ export function Today({ data, dateKey, todayChecks, todayPlan, onSelectTab, onSt
 
       <RankCard rank={data.rank} onClick={() => onSelectTab('progress')} />
 
-      <Card className="overflow-hidden border-rose-300/15 bg-gradient-to-br from-rose-400/[0.11] via-slate-900 to-slate-950 p-0">
+      <Card className="overflow-hidden border-rose-300/15 bg-gradient-to-br from-rose-400/[0.11] via-slate-900 to-slate-950 p-0" dataTour="today-plan">
         <div className="p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">

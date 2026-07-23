@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useAuth, type ForgetAfterDays } from '../auth/authContext';
 import { Card } from '../components/Card';
 import { WorkoutPlanManager } from '../components/WorkoutPlanManager';
-import { WorkoutTutorial } from '../components/WorkoutTutorial';
 import type { CloudSyncStatus } from '../hooks/useCloudSync';
 import type {
   AppData,
@@ -28,6 +27,7 @@ type SettingsProps = {
   onWeekPlanChange: (weekPlan: WeekPlanItem[]) => void;
   onWorkoutsChange: (workouts: Workout[]) => void;
   onResetData: () => void;
+  onOpenTutorial: () => void;
   cloudSync: {
     status: CloudSyncStatus;
     lastSyncedAt: string | null;
@@ -59,9 +59,8 @@ const eatingStyleOptions: Array<{ value: EatingStyle; label: string }> = [
 
 const mealCountOptions = [3, 4, 5, 6] as const;
 
-export function Settings({ data, onProfileChange, onGoalsChange, onNotificationsChange, onWeekPlanChange, onWorkoutsChange, onResetData, cloudSync }: SettingsProps) {
+export function Settings({ data, onProfileChange, onGoalsChange, onNotificationsChange, onWeekPlanChange, onWorkoutsChange, onResetData, onOpenTutorial, cloudSync }: SettingsProps) {
   const [notificationMessage, setNotificationMessage] = useState('');
-  const [showWorkoutTutorial, setShowWorkoutTutorial] = useState(false);
   const assignedPlan = data.assignedNutritionPlan;
   const { user, cloudEnabled, migrationResult, forgetAfterDays, setForgetAfterDays, signOut } = useAuth();
   const assignedProteinRange = assignedPlan?.targets?.proteinGrams;
@@ -135,12 +134,12 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
           <p className="mt-2 text-sm leading-relaxed text-slate-600">Organize sua rotina, perfil e preferências em um só lugar.</p>
         </div>
         <button
-          aria-label="Abrir tutorial de organização dos treinos"
+          aria-label="Abrir tour visual do aplicativo"
           className="mt-1 inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.035] px-3 text-xs font-extrabold text-slate-300"
-          onClick={() => setShowWorkoutTutorial(true)}
+          onClick={onOpenTutorial}
           type="button"
         >
-          <CircleHelp size={16} aria-hidden="true" /> Como organizar
+          <CircleHelp size={16} aria-hidden="true" /> Tour do app
         </button>
       </header>
 
@@ -213,7 +212,10 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
       ) : null}
 
       <Card>
-        <h2 className="section-title">Perfil</h2>
+        <div data-tour="settings-profile">
+          <h2 className="section-title">Perfil</h2>
+          <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-500">Dados pessoais, objetivo e preferências do seu plano.</p>
+        </div>
         <div className="mt-4 grid gap-3">
           <label className="block space-y-1 text-sm font-medium text-slate-700">
             <span>Nome</span>
@@ -461,7 +463,6 @@ export function Settings({ data, onProfileChange, onGoalsChange, onNotifications
         </div>
       </div>
 
-      {showWorkoutTutorial ? <WorkoutTutorial onClose={() => setShowWorkoutTutorial(false)} /> : null}
     </div>
   );
 }

@@ -150,7 +150,7 @@ export function Workout({
         </div>
       </div>
 
-      <Card className="session-hero overflow-hidden border-lime-300/15 bg-gradient-to-br from-lime-300/[0.08] via-slate-900 to-slate-950">
+      <Card className="session-hero overflow-hidden border-lime-300/15 bg-gradient-to-br from-lime-300/[0.08] via-slate-900 to-slate-950" dataTour="workout-session">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="eyebrow">{isTodayWorkout ? 'Treino de hoje' : selectedWorkout.dayLabel || 'Treino selecionado'}</p>
