@@ -1,5 +1,8 @@
-const CACHE_NAME = 'ana-fit-planner-v10';
+const CACHE_NAME = 'ana-fit-planner-v11';
+const OFFLINE_MANIFEST_URL = '/offline-assets.json';
 const APP_SHELL = [
+  '/',
+  '/index.html',
   '/manifest.webmanifest',
   '/favicon.svg?v=2',
   '/pwa-icon.svg?v=2',
@@ -11,43 +14,17 @@ const APP_SHELL = [
   ),
 ];
 
-function getViteAssetUrls(html) {
-  const assetUrls = new Set();
-  const attributePattern = /(?:src|href)=["']([^"']+)["']/g;
-  let match = attributePattern.exec(html);
-
-  while (match) {
-    const url = new URL(match[1], self.location.origin);
-    if (url.origin === self.location.origin && url.pathname.startsWith('/assets/')) {
-      assetUrls.add(`${url.pathname}${url.search}`);
-    }
-    match = attributePattern.exec(html);
-  }
-
-  return [...assetUrls];
-}
-
-async function fetchAndCache(cache, url) {
-  const response = await fetch(url, { cache: 'reload' });
-  if (!response.ok) {
-    throw new Error(`Nao foi possivel armazenar ${url}: ${response.status}`);
-  }
-
-  await cache.put(url, response);
-}
-
 async function precacheApp() {
-  const cache = await caches.open(CACHE_NAME);
-  const indexResponse = await fetch('/index.html', { cache: 'reload' });
-  if (!indexResponse.ok) {
-    throw new Error(`Nao foi possivel carregar o app: ${indexResponse.status}`);
+  const response = await fetch(OFFLINE_MANIFEST_URL, { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error(`Não foi possível carregar o manifesto offline: ${response.status}`);
   }
 
-  const html = await indexResponse.clone().text();
-  const viteAssetUrls = getViteAssetUrls(html);
+  const generatedAssets = await response.json();
+  const assets = [...new Set([...APP_SHELL, OFFLINE_MANIFEST_URL, ...generatedAssets])];
+  const cache = await caches.open(CACHE_NAME);
 
-  await cache.put('/index.html', indexResponse);
-  await Promise.all([...APP_SHELL, ...viteAssetUrls].map((url) => fetchAndCache(cache, url)));
+  await cache.addAll(assets);
 }
 
 self.addEventListener('install', (event) => {
@@ -63,53 +40,57 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+async function handleNavigation(request) {
+  try {
+    const response = await fetch(request);
+    const contentType = response.headers.get('content-type') || '';
+
+    if (response.ok && contentType.includes('text/html')) {
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put('/index.html', response.clone());
+      } catch {
+        // A falha do cache não deve descartar uma resposta de rede válida.
+      }
+    }
+
+    return response;
+  } catch {
+    return (await caches.match(request)) || (await caches.match('/index.html')) || Response.error();
+  }
+}
+
+async function handleStaticAsset(request) {
+  const cached = await caches.match(request);
+  if (cached) {
+    return cached;
+  }
+
+  const response = await fetch(request);
+  if (response.ok) {
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put(request, response.clone());
+    } catch {
+      // Mantém o recurso utilizável online mesmo se o cache estiver cheio.
+    }
+  }
+
+  return response;
+}
+
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') {
+  const { request } = event;
+  if (request.method !== 'GET') {
     return;
   }
 
-  const requestUrl = new URL(event.request.url);
-  if (requestUrl.origin !== self.location.origin || requestUrl.pathname.startsWith('/.netlify/functions/')) {
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/.netlify/functions/')) {
     return;
   }
 
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .then(async (response) => {
-          if (response.ok) {
-            try {
-              const cache = await caches.open(CACHE_NAME);
-              await cache.put('/index.html', response.clone());
-            } catch {
-              // A falha do cache nao deve descartar uma resposta de rede valida.
-            }
-          }
-          return response;
-        })
-        .catch(() => caches.match('/index.html'))
-    );
-    return;
-  }
-
-  event.respondWith(
-    caches.match(event.request).then(
-      (cached) =>
-        cached ??
-        fetch(event.request).then(async (response) => {
-          if (response.ok) {
-            try {
-              const cache = await caches.open(CACHE_NAME);
-              await cache.put(event.request, response.clone());
-            } catch {
-              // Mantem o recurso utilizavel online mesmo se o cache estiver cheio.
-            }
-          }
-
-          return response;
-        })
-    )
-  );
+  event.respondWith(request.mode === 'navigate' ? handleNavigation(request) : handleStaticAsset(request));
 });
 
 self.addEventListener('push', (event) => {
