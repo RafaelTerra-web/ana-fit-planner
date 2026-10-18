@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './auth/authContext';
 import { BottomNav } from './components/BottomNav';
+import { AppHeader } from './components/AppHeader';
 import { AppTour } from './components/AppTour';
 import { Onboarding, type OnboardingProfile } from './components/Onboarding';
 import { RankLevelUpModal } from './components/RankLevelUpModal';
@@ -17,6 +18,7 @@ import { Workout } from './pages/Workout';
 import type {
   AppData,
   AppTab,
+  CardioEntry,
   DailyChecks,
   ExerciseLog,
   Goals,
@@ -30,6 +32,7 @@ import type {
   Workout as WorkoutPlan,
 } from './types';
 import { hasAssignedNutritionPlan, normalizeAssignedNutritionPlan } from './utils/assignedNutritionPlan';
+import { normalizeCardioEntries } from './utils/cardio';
 import { calculateDynamicGoals, calculateMealPlan } from './utils/dietCalculator';
 import { getActiveMealDay, getRequiredMeals, isMealApplicable } from './utils/meals';
 import { createDefaultNotificationSettings, syncPushSubscriptionForCurrentUser } from './utils/notifications';
@@ -51,7 +54,12 @@ import {
   normalizeWorkoutSessions,
   reconcileWorkoutSession,
 } from './utils/workoutSessions';
-import { createDefaultWeekPlan, createDefaultWorkouts, getWeeklyActivityCounts, normalizeWorkoutData } from './utils/workoutVolume';
+import {
+  createDefaultWeekPlan,
+  createDefaultWorkouts,
+  getWeeklyActivityCounts,
+  normalizeWorkoutData,
+} from './utils/workoutVolume';
 
 const tabs: AppTab[] = ['today', 'workout', 'diet', 'progress', 'settings'];
 
@@ -88,6 +96,7 @@ function createInitialData(profileName = defaultProfile.name): AppData {
     activeWorkoutSessionId: null,
     rank: createInitialRankState(),
     progressEntries: [],
+    cardioEntries: [],
   };
 }
 
@@ -128,11 +137,19 @@ function normalizeMealPortionOverrides(value: unknown): MealPortionOverrides {
       if (!Array.isArray(portions)) return [];
       const normalized = portions.flatMap((portion): MealPortion[] => {
         if (!isRecord(portion) || typeof portion.itemId !== 'string' || typeof portion.label !== 'string') return [];
-        const quantity = typeof portion.quantity === 'number' && Number.isFinite(portion.quantity) && portion.quantity > 0
-          ? portion.quantity
-          : undefined;
+        const quantity =
+          typeof portion.quantity === 'number' && Number.isFinite(portion.quantity) && portion.quantity > 0
+            ? portion.quantity
+            : undefined;
         const unit = typeof portion.unit === 'string' && portion.unit.trim() ? portion.unit.trim() : undefined;
-        return [{ itemId: portion.itemId, label: portion.label, ...(quantity ? { quantity } : {}), ...(unit ? { unit } : {}) }];
+        return [
+          {
+            itemId: portion.itemId,
+            label: portion.label,
+            ...(quantity ? { quantity } : {}),
+            ...(unit ? { unit } : {}),
+          },
+        ];
       });
       return normalized.length ? [[portionKey, normalized]] : [];
     }),
@@ -155,7 +172,7 @@ function normalizeAppData(value: unknown): AppData {
     profile: {
       ...fallback.profile,
       ...profile,
-      theme: 'dark',
+      theme: 'light',
     },
     goals: {
       ...fallback.goals,
@@ -170,15 +187,21 @@ function normalizeAppData(value: unknown): AppData {
     },
     workouts: Array.isArray(value.workouts) ? (value.workouts as WorkoutPlan[]) : fallback.workouts,
     weekPlan: Array.isArray(value.weekPlan) ? (value.weekPlan as WeekPlanItem[]) : fallback.weekPlan,
-    dailyChecks: isRecord(value.dailyChecks) ? (value.dailyChecks as Record<string, DailyChecks>) : fallback.dailyChecks,
+    dailyChecks: isRecord(value.dailyChecks)
+      ? (value.dailyChecks as Record<string, DailyChecks>)
+      : fallback.dailyChecks,
     exerciseLogs: isRecord(value.exerciseLogs) ? (value.exerciseLogs as Record<string, LegacyExerciseLog>) : {},
     workoutSessions: {},
     activeWorkoutSessionId: null,
     rank: normalizeRankState(value.rank),
-    progressEntries: Array.isArray(value.progressEntries) ? (value.progressEntries as ProgressEntry[]) : fallback.progressEntries,
+    progressEntries: Array.isArray(value.progressEntries)
+      ? (value.progressEntries as ProgressEntry[])
+      : fallback.progressEntries,
+    cardioEntries: normalizeCardioEntries(value.cardioEntries),
   });
 
-  const storedTrainingDays = typeof profile.trainingDays === 'number' ? profile.trainingDays : fallback.profile.trainingDays;
+  const storedTrainingDays =
+    typeof profile.trainingDays === 'number' ? profile.trainingDays : fallback.profile.trainingDays;
   const storedCardioDays = typeof profile.cardioDays === 'number' ? profile.cardioDays : fallback.profile.cardioDays;
   if (
     !hasAssignedNutritionPlan(normalizedWorkoutData.assignedNutritionPlan) &&
@@ -196,27 +219,29 @@ function normalizeAppData(value: unknown): AppData {
   const workoutSessions = normalizeWorkoutSessions(value.workoutSessions, normalizedWorkoutData.workouts);
   const storedActiveSessionId = typeof value.activeWorkoutSessionId === 'string' ? value.activeWorkoutSessionId : null;
   const storedActiveSession = storedActiveSessionId ? workoutSessions[storedActiveSessionId] : undefined;
-  const migratedActiveSession =
-    !('activeWorkoutSessionId' in value)
-      ? Object.values(workoutSessions)
-          .filter(
-            (session) =>
-              !session.completedAt && normalizedWorkoutData.workouts.some((workout) => workout.id === session.workoutId)
-          )
-          .sort((first, second) => Date.parse(second.startedAt) - Date.parse(first.startedAt))[0]
-      : undefined;
+  const migratedActiveSession = !('activeWorkoutSessionId' in value)
+    ? Object.values(workoutSessions)
+        .filter(
+          (session) =>
+            !session.completedAt && normalizedWorkoutData.workouts.some((workout) => workout.id === session.workoutId),
+        )
+        .sort((first, second) => Date.parse(second.startedAt) - Date.parse(first.startedAt))[0]
+    : undefined;
 
   return {
     ...normalizedWorkoutData,
     workoutSessions,
     activeWorkoutSessionId:
-      storedActiveSession && !storedActiveSession.completedAt ? storedActiveSession.id : migratedActiveSession?.id ?? null,
+      storedActiveSession && !storedActiveSession.completedAt
+        ? storedActiveSession.id
+        : (migratedActiveSession?.id ?? null),
   };
 }
 
 function App() {
   const { markOnboardingComplete, user } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTab>(getInitialTab);
+  const [workoutSelectionId, setWorkoutSelectionId] = useState<string | undefined>();
   const [dateKey, setDateKey] = useState(getLocalDateKey);
   const [storedData, setStoredData] = useLocalStorage<unknown>(APP_STORAGE_KEY, getInitialStoredData);
   const normalizedData = useMemo(() => normalizeAppData(storedData), [storedData]);
@@ -317,10 +342,13 @@ function App() {
       window.clearTimeout(midnightTimer);
       const now = new Date();
       const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-      midnightTimer = window.setTimeout(() => {
-        setDateKey(getLocalDateKey());
-        scheduleMidnightUpdate();
-      }, Math.max(1_000, nextDay.getTime() - now.getTime() + 100));
+      midnightTimer = window.setTimeout(
+        () => {
+          setDateKey(getLocalDateKey());
+          scheduleMidnightUpdate();
+        },
+        Math.max(1_000, nextDay.getTime() - now.getTime() + 100),
+      );
     };
 
     const syncCurrentDate = () => {
@@ -344,6 +372,7 @@ function App() {
   }, [setStoredData]);
 
   const changeTab = (tab: AppTab) => {
+    if (tab !== 'workout') setWorkoutSelectionId(undefined);
     setActiveTab(tab);
     const url = new URL(window.location.href);
     if (tab === 'today') {
@@ -380,11 +409,16 @@ function App() {
       if (nextValue && key !== 'trainingDone') {
         const kind = key === 'cardioDone' ? 'cardio' : key === 'waterDone' ? 'water' : 'steps';
         const currentDayPlan = getTodayPlan(current.weekPlan);
-        const canClaim = kind !== 'cardio' || (currentDayPlan.activityType === 'cardio' && Boolean(currentDayPlan.cardio));
+        const canClaim =
+          kind !== 'cardio' || (currentDayPlan.activityType === 'cardio' && Boolean(currentDayPlan.cardio));
         if (canClaim && actionDateKey >= rank.startedOn) {
           rank = claimRankEvent(
             rank,
-            createRankEvent({ kind, dateKey: actionDateKey, sourceId: `${kind}:${actionDateKey}` })
+            createRankEvent({
+              kind,
+              dateKey: actionDateKey,
+              sourceId: `${kind}:${actionDateKey}`,
+            }),
           );
         }
       }
@@ -419,7 +453,11 @@ function App() {
       if (nutritionCompleted && actionDateKey >= rank.startedOn) {
         rank = claimRankEvent(
           rank,
-          createRankEvent({ kind: 'nutrition', dateKey: actionDateKey, sourceId: `nutrition:${actionDateKey}` })
+          createRankEvent({
+            kind: 'nutrition',
+            dateKey: actionDateKey,
+            sourceId: `nutrition:${actionDateKey}`,
+          }),
         );
       }
 
@@ -435,6 +473,7 @@ function App() {
   };
 
   const startWorkoutSession = (workoutId: string) => {
+    setWorkoutSelectionId(workoutId);
     const actionDateKey = getActionDateKey();
     updateData((current) => {
       const workout = current.workouts.find((item) => item.id === workoutId);
@@ -445,9 +484,7 @@ function App() {
       const sessionId = getWorkoutSessionId(workoutId, actionDateKey);
       const existingSession = current.workoutSessions[sessionId];
       if (existingSession) {
-        return existingSession.completedAt
-          ? current
-          : { ...current, activeWorkoutSessionId: existingSession.id };
+        return existingSession.completedAt ? current : { ...current, activeWorkoutSessionId: existingSession.id };
       }
 
       const session = createWorkoutSession(workout, {
@@ -466,7 +503,12 @@ function App() {
     });
   };
 
-  const updateExerciseLog = (sessionId: string | undefined, workoutId: string, exerciseId: string, log: ExerciseLog) => {
+  const updateExerciseLog = (
+    sessionId: string | undefined,
+    workoutId: string,
+    exerciseId: string,
+    log: ExerciseLog,
+  ) => {
     const actionDateKey = getActionDateKey();
     updateData((current) => {
       const workout = current.workouts.find((item) => item.id === workoutId);
@@ -477,8 +519,11 @@ function App() {
       const storedSession = sessionId ? current.workoutSessions[sessionId] : undefined;
       const session = reconcileWorkoutSession(
         storedSession ??
-          createWorkoutSession(workout, { dateKey: actionDateKey, legacyExerciseLogs: current.exerciseLogs }),
-        workout
+          createWorkoutSession(workout, {
+            dateKey: actionDateKey,
+            legacyExerciseLogs: current.exerciseLogs,
+          }),
+        workout,
       );
       if (session.completedAt) {
         return current;
@@ -492,7 +537,7 @@ function App() {
         ...session,
         plannedSetCount: session.exerciseOrder.reduce(
           (total, orderedExerciseId) => total + (exerciseLogs[orderedExerciseId]?.plannedSetCount ?? 0),
-          0
+          0,
         ),
         exerciseLogs,
       };
@@ -512,11 +557,6 @@ function App() {
     getActionDateKey();
     const session = data.workoutSessions[sessionId];
     if (!session || session.completedAt) {
-      return;
-    }
-
-    const progress = getWorkoutSessionProgress(session);
-    if (progress.percentage < 60 && !window.confirm('Menos de 60% das séries planejadas foram concluídas. Finalizar mesmo assim?')) {
       return;
     }
 
@@ -553,7 +593,10 @@ function App() {
         },
         dailyChecks: {
           ...current.dailyChecks,
-          [sessionDateKey]: { ...checks, trainingDone: checks.trainingDone || isRankEligible },
+          [sessionDateKey]: {
+            ...checks,
+            trainingDone: checks.trainingDone || isRankEligible,
+          },
         },
       };
     });
@@ -571,7 +614,10 @@ function App() {
           ...current.goals,
           ...goals,
         },
-        meals: calculateMealPlan(current.profile, { ...current.goals, ...goals }),
+        meals: calculateMealPlan(current.profile, {
+          ...current.goals,
+          ...goals,
+        }),
         mealPortionOverrides: {},
       };
     });
@@ -584,9 +630,12 @@ function App() {
         ...current.profile,
         ...profile,
         ...(hasAssignedPlan
-          ? { preferredFoods: current.profile.preferredFoods, avoidedFoods: current.profile.avoidedFoods }
+          ? {
+              preferredFoods: current.profile.preferredFoods,
+              avoidedFoods: current.profile.avoidedFoods,
+            }
           : {}),
-        theme: 'dark' as const,
+        theme: 'light' as const,
       };
       const nextGoals = calculateDynamicGoals(nextProfile);
 
@@ -607,10 +656,13 @@ function App() {
       ...data.profile,
       ...profile,
       ...(hasAssignedPlan
-        ? { preferredFoods: data.profile.preferredFoods, avoidedFoods: data.profile.avoidedFoods }
+        ? {
+            preferredFoods: data.profile.preferredFoods,
+            avoidedFoods: data.profile.avoidedFoods,
+          }
         : {}),
       onboardingCompleted: true,
-      theme: 'dark',
+      theme: 'light',
     };
     const nextGoals = calculateDynamicGoals(nextProfile);
     const completedData = normalizeAppData({
@@ -693,7 +745,11 @@ function App() {
       const isEligibleDate = entry.date >= current.rank.startedOn && entry.date <= actionDateKey;
       const rankEvent =
         entry.weightKg > 0 && isEligibleDate
-          ? createRankEvent({ kind: 'progress-checkin', dateKey: entry.date, sourceId: entry.id })
+          ? createRankEvent({
+              kind: 'progress-checkin',
+              dateKey: entry.date,
+              sourceId: entry.id,
+            })
           : null;
 
       return {
@@ -703,8 +759,8 @@ function App() {
           ...current.profile,
           weightKg: entry.weightKg || current.profile.weightKg,
         },
-        progressEntries: [...current.progressEntries.filter((item) => item.id !== entry.id), entry].sort((first, second) =>
-          first.date.localeCompare(second.date)
+        progressEntries: [...current.progressEntries.filter((item) => item.id !== entry.id), entry].sort(
+          (first, second) => first.date.localeCompare(second.date),
         ),
       };
     });
@@ -739,54 +795,117 @@ function App() {
     }
   };
 
+  const managePlan = () => {
+    changeTab('settings');
+    window.requestAnimationFrame(() => {
+      const section = document.getElementById('manage-workout-plan');
+      section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      section?.focus({ preventScroll: true });
+    });
+  };
+
+  const addCardio = (entry: CardioEntry) => {
+    const actionDateKey = getActionDateKey();
+    updateData((current) => {
+      const cardioEntries = normalizeCardioEntries([entry, ...(current.cardioEntries ?? [])]);
+      const checks = normalizeDailyChecks(current.dailyChecks[actionDateKey], current.meals);
+      const plan = getTodayPlan(current.weekPlan);
+      const isScheduledToday =
+        entry.date === actionDateKey &&
+        plan.activityType === 'cardio' &&
+        Boolean(plan.cardio) &&
+        cardioEntries.some((item) => item.id === entry.id);
+      return {
+        ...current,
+        cardioEntries,
+        ...(isScheduledToday
+          ? {
+              dailyChecks: { ...current.dailyChecks, [actionDateKey]: { ...checks, cardioDone: true } },
+              rank:
+                actionDateKey >= current.rank.startedOn
+                  ? claimRankEvent(
+                      current.rank,
+                      createRankEvent({ kind: 'cardio', dateKey: actionDateKey, sourceId: `cardio:${actionDateKey}` }),
+                    )
+                  : current.rank,
+            }
+          : {}),
+      };
+    });
+  };
+
+  const removeCardio = (id: string) => {
+    updateData((current) => ({
+      ...current,
+      cardioEntries: (current.cardioEntries ?? []).filter((entry) => entry.id !== id),
+    }));
+  };
+
   if (onboardingRequired) {
     return <Onboarding profile={data.profile} onComplete={completeOnboarding} />;
   }
 
   return (
     <>
-      <main className="app-page" data-theme={data.profile.theme}>
-        <div className="mx-auto max-w-lg">
-        {activeTab === 'today' ? (
-          <Today
-            data={data}
-            dateKey={dateKey}
-            todayChecks={todayChecks}
-            todayPlan={todayPlan}
-            onSelectTab={changeTab}
-            onStartWorkout={startWorkoutSession}
-            onToggleCheck={toggleCheck}
-          />
-        ) : null}
-        {activeTab === 'workout' ? (
-          <Workout
-            data={data}
-            dateKey={dateKey}
-            todayChecks={todayChecks}
-            todayPlan={todayPlan}
-            onExerciseLogChange={updateExerciseLog}
-            onFinishSession={finishWorkoutSession}
-            onStartSession={startWorkoutSession}
-            onToggleCheck={toggleCheck}
-          />
-        ) : null}
-        {activeTab === 'diet' ? (
-          <Diet data={data} todayChecks={todayChecks} onToggleMeal={toggleMeal} onPortionsChange={updateMealPortions} />
-        ) : null}
-        {activeTab === 'progress' ? <Progress data={data} onAddProgress={addProgress} /> : null}
-        {activeTab === 'settings' ? (
-          <Settings
-            data={{ ...data, notifications }}
-            onProfileChange={updateProfile}
-            onGoalsChange={updateGoals}
-            onNotificationsChange={updateNotifications}
-            onWeekPlanChange={updateWeekPlan}
-            onWorkoutsChange={updateWorkouts}
-            onResetData={resetData}
-            onOpenTutorial={() => setShowAppTour(true)}
-            cloudSync={cloudSync}
-          />
-        ) : null}
+      <main className="app-page" data-theme="light" id="main-content">
+        <AppHeader
+          activeTab={activeTab}
+          profileName={data.profile.name}
+          syncStatus={cloudSync.status}
+          onSelectTab={changeTab}
+        />
+        <div className="app-content" key={activeTab}>
+          {activeTab === 'today' ? (
+            <Today
+              data={data}
+              dateKey={dateKey}
+              todayChecks={todayChecks}
+              todayPlan={todayPlan}
+              onSelectTab={changeTab}
+              onStartWorkout={startWorkoutSession}
+              onOpenWorkout={setWorkoutSelectionId}
+              onToggleCheck={toggleCheck}
+              onManagePlan={managePlan}
+            />
+          ) : null}
+          {activeTab === 'workout' ? (
+            <Workout
+              data={data}
+              initialWorkoutId={workoutSelectionId}
+              dateKey={dateKey}
+              todayChecks={todayChecks}
+              todayPlan={todayPlan}
+              onExerciseLogChange={updateExerciseLog}
+              onFinishSession={finishWorkoutSession}
+              onStartSession={startWorkoutSession}
+              onToggleCheck={toggleCheck}
+              onManagePlan={managePlan}
+              onAddCardio={addCardio}
+              onRemoveCardio={removeCardio}
+            />
+          ) : null}
+          {activeTab === 'diet' ? (
+            <Diet
+              data={data}
+              todayChecks={todayChecks}
+              onToggleMeal={toggleMeal}
+              onPortionsChange={updateMealPortions}
+            />
+          ) : null}
+          {activeTab === 'progress' ? <Progress data={data} onAddProgress={addProgress} /> : null}
+          {activeTab === 'settings' ? (
+            <Settings
+              data={{ ...data, notifications }}
+              onProfileChange={updateProfile}
+              onGoalsChange={updateGoals}
+              onNotificationsChange={updateNotifications}
+              onWeekPlanChange={updateWeekPlan}
+              onWorkoutsChange={updateWorkouts}
+              onResetData={resetData}
+              onOpenTutorial={() => setShowAppTour(true)}
+              cloudSync={cloudSync}
+            />
+          ) : null}
         </div>
         <BottomNav activeTab={activeTab} onChange={changeTab} />
       </main>

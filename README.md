@@ -2,6 +2,22 @@
 
 PWA mobile-first para acompanhar treino, alimentação, cardio, hábitos e progresso corporal em perfis individuais.
 
+## Atualização 1.1 · sua rotina, seu ritmo
+
+- Interface clara com navegação fixa no celular e lateral no desktop.
+- Início com agenda interativa, resumo real da semana, continuação de sessões e metas rápidas.
+- Biblioteca de rotinas com busca por treino, exercício e músculo; editor acessível pelo botão Organizar.
+- Catálogo inicial de 44 exercícios com filtros por músculo e equipamento, além de exercícios personalizados. As prescrições iniciais são editáveis.
+- Registro por série com referência anterior, repetição de valores, validação de carga/repetições e descanso automático. Para exercícios sem carga externa, informe 0 kg.
+- Resumo antes de finalizar: séries, duração, volume e elegibilidade para XP.
+- Evolução com períodos de 7, 30, 90 e 365 dias, frequência, volume, duração, recordes de carga e histórico detalhado por exercício e sessão.
+- Cardio com atividade, data, duração, distância opcional e observação; totais por período. Registrar o cardio programado para hoje marca a meta automaticamente e mantém o limite de XP diário.
+- Exportação de cópia completa em JSON e das séries em CSV nos Ajustes.
+
+Dados existentes continuam na estrutura v5 e na mesma conta. O novo campo opcional `cardioEntries` inicia vazio em cópias antigas. O tema passa a ser claro; histórico, plano nutricional atribuído, sincronização e critérios de XP são preservados. A duração mede o intervalo entre início e finalização, incluindo pausas; não estima tempo em atividade. Recordes comparam a maior carga externa de uma série válida e não são uma medida clínica de evolução.
+
+O PWA mantém as notificações já existentes; esta atualização não adiciona Live Activities, HealthKit ou widgets nativos do iPhone.
+
 ## Experiência de treino
 
 - Sessões datadas: o treino de hoje não sobrescreve a sessão anterior.
@@ -59,8 +75,12 @@ npm run dev
 
 ```bash
 npm run lint
+npm test
+npm run test:render
 npm run build
 ```
+
+Os testes usam Node.js 22.6 ou superior para ler TypeScript. A checagem `test:render` renderiza as cinco áreas com React no servidor, incluindo cenários com dados persistidos; ela não substitui uma revisão visual em navegador.
 
 ## Deploy no Netlify
 

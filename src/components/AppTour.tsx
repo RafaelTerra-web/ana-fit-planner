@@ -43,9 +43,9 @@ type TargetRect = {
 
 const ecosystemItems: Array<{ icon: LucideIcon; label: string; stepIndex: number; tab: AppTab }> = [
   { tab: 'today', label: 'Início', icon: Home, stepIndex: 1 },
-  { tab: 'workout', label: 'Treino', icon: Dumbbell, stepIndex: 2 },
-  { tab: 'diet', label: 'Dieta', icon: Utensils, stepIndex: 3 },
-  { tab: 'progress', label: 'Progresso', icon: Activity, stepIndex: 4 },
+  { tab: 'workout', label: 'Treinos', icon: Dumbbell, stepIndex: 2 },
+  { tab: 'diet', label: 'Alimentação', icon: Utensils, stepIndex: 3 },
+  { tab: 'progress', label: 'Evolução', icon: Activity, stepIndex: 4 },
   { tab: 'settings', label: 'Ajustes', icon: Settings, stepIndex: 5 },
 ];
 
@@ -55,7 +55,7 @@ const tourSteps: TourStep[] = [
     target: 'bottom-nav',
     icon: Sparkles,
     accent: 'from-lime-300 to-emerald-300',
-    title: 'Todo o AnFit em cinco áreas',
+    title: 'Seu Ana Fit em cinco áreas',
     description:
       'Esta barra é o mapa do aplicativo. O tour vai abrir cada área e mostrar, na própria tela, onde estão as funções importantes.',
     tip: 'Você pode tocar nos ícones deste guia para pular diretamente para uma área.',
@@ -68,7 +68,7 @@ const tourSteps: TourStep[] = [
     accent: 'from-rose-300 to-amber-200',
     title: 'Início: o que fazer hoje',
     description:
-      'Aqui aparece o treino, cardio ou descanso programado. Logo abaixo ficam água, passos, refeições e outras ações rápidas que rendem XP.',
+      'Consulte os dias da semana e veja o treino, cardio ou descanso programado. Os pequenos cuidados guardam as metas de água, passos e alimentação.',
     tip: 'Comece o dia por esta tela. Ela transforma todo o seu planejamento em poucas ações.',
   },
   {
@@ -80,7 +80,7 @@ const tourSteps: TourStep[] = [
     title: 'Treino: execute uma série por vez',
     description:
       'Escolha o treino do dia, registre carga, repetições e RIR. Ao concluir uma série, o descanso inicia e avisa quando terminar.',
-    tip: 'A edição do treino fica nos Ajustes; esta aba permanece limpa para usar durante a sessão.',
+    tip: 'Use Organizar para editar a rotina, Repetir para copiar os valores e Registrar cardio para guardar outras atividades.',
   },
   {
     id: 'diet',
@@ -99,9 +99,9 @@ const tourSteps: TourStep[] = [
     target: 'progress-rank',
     icon: Trophy,
     accent: 'from-amber-300 to-orange-300',
-    title: 'Progresso: XP, ranks e evolução',
+    title: 'Evolução: treinos, medidas e conquistas',
     description:
-      'Seu brasão, o caminho do Ferro I ao Olympia III e a barra de XP ficam aqui. Também é onde você registra peso, medidas, fotos e cargas.',
+      'Treinos mostra frequência, cargas e histórico. Medidas guarda seus check-ins. Em Conquistas ficam seu brasão, o caminho do Ferro I ao Olympia III e o XP.',
     tip: 'Consistência aumenta o rank. Longos períodos sem atividade podem reduzir XP.',
   },
   {

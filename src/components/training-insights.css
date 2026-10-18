@@ -1,0 +1,571 @@
+.training-insights {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.training-period-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+}
+.training-period-panel > span {
+  color: #a0b1a3;
+  font-size: 10px;
+}
+.training-period-tabs {
+  display: flex;
+  padding: 4px;
+  background: #e9efea;
+  border-radius: 10px;
+  gap: 4px;
+}
+.training-period-tabs button {
+  padding: 7px 15px;
+  min-height: 34px;
+  min-width: 0;
+  border-radius: 7px;
+  color: #8fa295;
+  font-size: 10px;
+  font-weight: 600;
+}
+.training-period-tabs button.is-selected {
+  background: #fff;
+  color: #458361;
+  box-shadow: 0 1px 5px #2d633b07;
+}
+.training-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 11px;
+}
+.training-stat {
+  padding: 17px;
+  border: 1px solid #e3eae4;
+  background: #fff;
+  border-radius: 14px;
+  min-width: 0;
+}
+.training-stat--featured {
+  background: #e7f4e9;
+  border-color: #d7e8d8;
+}
+.training-stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: #edf5eb;
+  color: #84a888;
+  display: grid;
+  place-items: center;
+  margin-bottom: 16px;
+}
+.training-stat-icon--gold {
+  background: #faf1df;
+  color: #c0a065;
+}
+.training-stat p {
+  font-size: 9px;
+  color: #91a294;
+}
+.training-stat > strong {
+  display: block;
+  font-size: 27px;
+  color: #47634e;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  margin-top: 7px;
+}
+.training-stat > strong small {
+  font-size: 12px;
+  color: #a0b39d;
+  font-weight: 400;
+}
+.training-stat > span:last-child {
+  display: block;
+  margin-top: 7px;
+  font-size: 8px;
+  color: #a2b19f;
+  line-height: 1.5;
+}
+.training-stat .training-time-value {
+  font-size: 21px;
+  line-height: 1.6;
+}
+.training-panel {
+  padding: 23px;
+  border-radius: 17px;
+  border: 1px solid #e1e9e2;
+  background: #fff;
+  min-width: 0;
+}
+.training-panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.training-eyebrow {
+  color: #88a48b;
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+.training-panel-heading h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #46624b;
+  margin-top: 6px;
+  letter-spacing: -0.3px;
+}
+.training-panel-icon {
+  background: #eff5eb;
+  color: #91ab8d;
+  width: 37px;
+  height: 37px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+}
+.training-frequency-chart {
+  display: flex;
+  gap: 10px;
+  height: 163px;
+  align-items: stretch;
+}
+.training-frequency-column {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
+  font-size: 9px;
+  color: #99b39e;
+}
+.training-frequency-column > span {
+  min-height: 14px;
+}
+.training-frequency-track {
+  display: flex;
+  align-items: end;
+  width: min(100%, 42px);
+  flex: 1;
+  background: #f5f8f1;
+  border-radius: 6px 6px 0 0;
+}
+.training-frequency-track i {
+  width: 100%;
+  border-radius: 6px 6px 0 0;
+  background: #e8f0e2;
+}
+.training-frequency-track i.has-workout {
+  background: #8cba96;
+}
+.training-frequency-column > small {
+  font-size: 8px;
+  color: #aab9a7;
+  white-space: nowrap;
+}
+.training-chart-caption {
+  font-size: 9px;
+  color: #9fb09e;
+  line-height: 1.7;
+  margin-top: 13px;
+}
+.training-comparison {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: #85a281;
+  background: #f2f7ed;
+  padding: 10px;
+  border-radius: 8px;
+  margin-top: 15px;
+}
+.training-empty {
+  padding: 20px 15px 27px;
+  text-align: center;
+  color: #a3b59f;
+}
+.training-empty-icon {
+  display: grid;
+  place-items: center;
+  background: #f0f6eb;
+  width: 61px;
+  height: 61px;
+  border-radius: 21px;
+  margin: 0 auto 18px;
+  color: #9eb99a;
+}
+.training-empty > svg {
+  margin: 0 auto 15px;
+}
+.training-empty h3 {
+  font-size: 14px;
+  font-weight: 650;
+  color: #728d6c;
+}
+.training-empty p {
+  max-width: 350px;
+  margin: 10px auto 0;
+  font-size: 11px;
+  line-height: 1.9;
+  color: #a3b39a;
+}
+.training-empty--compact {
+  padding-top: 15px;
+}
+.training-teal {
+  color: #81a983;
+}
+.training-select-label {
+  font-size: 9px;
+  color: #99ae96;
+  display: block;
+  margin-bottom: 6px;
+}
+.training-select {
+  width: 100%;
+  border: 1px solid #dfe8da;
+  background: #f9fbf6;
+  padding: 12px;
+  min-height: 45px;
+  color: #64865c;
+  font-size: 12px;
+  border-radius: 9px;
+}
+.training-exercise-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 22px 0 10px;
+  gap: 15px;
+}
+.training-exercise-metrics > div > span {
+  display: block;
+  font-size: 9px;
+  color: #9fb396;
+}
+.training-exercise-metrics strong {
+  display: block;
+  font-size: 25px;
+  font-weight: 700;
+  color: #6b905f;
+  margin-top: 6px;
+}
+.training-exercise-metrics small {
+  font-size: 12px;
+  font-weight: 400;
+}
+.training-load-chart svg {
+  width: 100%;
+  height: 175px;
+}
+.training-chart-grid {
+  stroke: #ecf2e7;
+  stroke-dasharray: 4 6;
+}
+.training-chart-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #afc1a4;
+}
+.training-load-change {
+  color: #8aab77;
+  font-size: 10px;
+  margin-top: 17px;
+}
+.training-chart-empty {
+  background: #f6f9f0;
+  text-align: center;
+  padding: 27px 15px;
+  border-radius: 11px;
+  color: #adc69b;
+}
+.training-chart-empty > svg {
+  margin: auto auto 10px;
+}
+.training-chart-empty p {
+  color: #8da77b;
+  font-size: 12px;
+}
+.training-chart-empty > span {
+  display: block;
+  font-size: 10px;
+  margin-top: 7px;
+  line-height: 1.7;
+}
+.training-history-details {
+  border-top: 1px solid #ebf1e5;
+  margin-top: 17px;
+}
+.training-history-details summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  color: #8ca57b;
+  font-size: 10px;
+  min-height: 48px;
+}
+.training-history-details summary > span {
+  margin-left: auto;
+  font-size: 9px;
+  color: #b4c5a8;
+}
+.training-exercise-history > div {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  justify-content: space-between;
+  border-top: 1px solid #f0f4eb;
+  padding: 12px 0;
+  font-size: 11px;
+  color: #88a073;
+}
+.training-exercise-history small {
+  display: block;
+  font-size: 9px;
+  color: #b1c39f;
+  margin-top: 4px;
+}
+.training-exercise-history b {
+  font-size: 11px;
+  font-weight: 600;
+}
+.training-count {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  background: #f1f6e9;
+  border-radius: 9px;
+  font-size: 11px;
+  color: #9bb087;
+}
+.training-session {
+  border-top: 1px solid #edf3e6;
+}
+.training-session summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 77px;
+  cursor: pointer;
+}
+.training-session-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 37px;
+  background: #f0f6e7;
+  color: #acbe95;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.training-session-title {
+  flex: 1;
+  min-width: 0;
+}
+.training-session-title strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 650;
+  color: #7b9461;
+  line-height: 1.6;
+}
+.training-session-title small {
+  display: block;
+  font-size: 9px;
+  color: #b1c29e;
+  margin-top: 4px;
+}
+.training-session-volume {
+  text-align: right;
+  font-size: 12px;
+  font-weight: 650;
+  color: #8da773;
+  flex-shrink: 0;
+}
+.training-session-volume small {
+  display: block;
+  font-size: 8px;
+  font-weight: 400;
+  color: #bac8a9;
+  margin-top: 4px;
+}
+.training-detail-chevron {
+  color: #c1cdb1;
+  flex-shrink: 0;
+}
+.training-session[open] .training-detail-chevron {
+  transform: rotate(180deg);
+}
+.training-session-body {
+  padding: 0 0 17px;
+}
+.training-session-body > p {
+  padding: 10px;
+  border-radius: 7px;
+  background: #f6f9ef;
+  font-size: 9px;
+  color: #adc098;
+  line-height: 1.7;
+}
+.training-session-exercise {
+  padding: 12px 0;
+  border-bottom: 1px solid #f2f5ed;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  font-size: 10px;
+  color: #a3ba87;
+}
+.training-session-exercise > div {
+  min-width: 0;
+}
+.training-session-exercise strong {
+  font-size: 10px;
+  font-weight: 650;
+  color: #91a776;
+  overflow-wrap: anywhere;
+}
+.training-session-exercise small {
+  display: block;
+  margin-top: 4px;
+  color: #bacba6;
+  font-size: 9px;
+  overflow-wrap: anywhere;
+}
+.training-session-exercise > span {
+  white-space: nowrap;
+}
+.training-record-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 13px 0;
+}
+.training-record-list > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 9px;
+  border-radius: 6px;
+  background: #fbf7e7;
+  color: #b1a16c;
+  font-size: 9px;
+}
+.training-history-empty,
+.training-data-note {
+  font-size: 10px;
+  line-height: 1.8;
+  color: #a8bb94;
+}
+.training-data-note {
+  padding: 0 5px;
+}
+.training-period-panel > span,
+.training-period-tabs button,
+.training-stat p,
+.training-stat > span:last-child,
+.training-chart-caption,
+.training-empty p,
+.training-history-empty,
+.training-data-note,
+.training-session-title small,
+.training-session-volume small,
+.training-session-body > p,
+.training-session-exercise small,
+.training-select-label,
+.training-exercise-metrics > div > span,
+.training-chart-labels,
+.training-exercise-history small,
+.training-frequency-column > small {
+  color: #647c68;
+}
+.training-stat p,
+.training-stat > span:last-child,
+.training-chart-caption,
+.training-data-note {
+  font-size: 11px;
+}
+.training-panel-heading h2 {
+  color: #3d6446;
+  font-size: 18px;
+}
+.training-session-title strong {
+  color: #4d7049;
+}
+.training-session-title small {
+  font-size: 10px;
+}
+.training-eyebrow {
+  color: #648567;
+  font-size: 10px;
+}
+.training-session-volume,
+.training-session-exercise,
+.training-exercise-history > div {
+  color: #4d754c;
+}
+.training-session-exercise strong {
+  color: #4e744d;
+  font-size: 11px;
+}
+.training-session-exercise small {
+  font-size: 10px;
+}
+.training-empty h3 {
+  color: #50714e;
+}
+.training-cardio-numbers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.training-cardio-numbers > span {
+  font-size: 10px;
+  color: #6d846a;
+}
+.training-cardio-numbers strong {
+  display: block;
+  color: #51764d;
+  font-size: 25px;
+  margin-bottom: 7px;
+}
+.training-cardio-numbers small {
+  font-size: 11px;
+  font-weight: 400;
+}
+@media (max-width: 600px) {
+  .training-stat-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .training-period-panel > span {
+    font-size: 8px;
+  }
+  .training-period-tabs button {
+    padding: 7px 12px;
+  }
+  .training-panel {
+    padding: 19px;
+  }
+  .training-session-title strong {
+    font-size: 11px;
+  }
+  .training-session-title small {
+    font-size: 8px;
+  }
+  .training-session summary {
+    gap: 8px;
+  }
+  .training-session-volume {
+    font-size: 11px;
+  }
+}

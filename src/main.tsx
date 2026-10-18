@@ -4,6 +4,7 @@ import App from './App';
 import { AuthGate } from './auth/AuthGate';
 import { RestTimerProvider } from './components/RestTimerProvider';
 import './index.css';
+import './refresh.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

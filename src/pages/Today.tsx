@@ -1,10 +1,27 @@
-import { Activity, ArrowRight, Check, Droplets, Dumbbell, Footprints, HeartPulse, MoonStar, Utensils } from 'lucide-react';
-import { Card } from '../components/Card';
+import {
+  ArrowRight,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  Droplets,
+  Dumbbell,
+  Footprints,
+  HeartPulse,
+  MoonStar,
+  Plus,
+  Sparkles,
+  Utensils,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { RankCard } from '../components/RankCard';
 import { getWorkoutById } from '../data/workoutPlan';
 import type { AppData, AppTab, DailyChecks, WeekPlanItem } from '../types';
 import { getActiveMealDay, getRequiredMeals } from '../utils/meals';
-import { getWorkoutSessionId, getWorkoutSessionProgress } from '../utils/workoutSessions';
+import { getLocalDateKey, getWorkoutSessionId, getWorkoutSessionProgress } from '../utils/workoutSessions';
+import { estimateWorkoutMinutes } from '../utils/workoutExperience';
+import { getSessionTrainingSummary } from '../utils/trainingInsights';
 
 type TodayProps = {
   data: AppData;
@@ -14,184 +31,399 @@ type TodayProps = {
   onSelectTab: (tab: AppTab) => void;
   onStartWorkout: (workoutId: string) => void;
   onToggleCheck: (key: keyof Omit<DailyChecks, 'meals'>) => void;
+  onManagePlan?: () => void;
+  onOpenWorkout?: (workoutId: string) => void;
 };
+const days = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
 
-function getGreeting(date = new Date()) {
-  const hour = date.getHours();
-  if (hour < 12) return 'Bom dia';
-  if (hour < 18) return 'Boa tarde';
-  return 'Boa noite';
-}
-
-function CheckAction({
-  checked,
-  icon: Icon,
-  label,
-  helper,
-  onClick,
-}: {
-  checked: boolean;
-  icon: typeof Droplets;
-  label: string;
-  helper: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={`rounded-[1.15rem] border p-3 text-left transition ${
-        checked ? 'border-lime-300/25 bg-lime-300/[0.08]' : 'border-white/10 bg-white/[0.035]'
-      }`}
-      type="button"
-      onClick={onClick}
-      aria-pressed={checked}
-    >
-      <span className="flex items-start justify-between gap-2">
-        <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${checked ? 'bg-lime-300 text-slate-950' : 'bg-white/[0.05] text-slate-300'}`}>
-          {checked ? <Check size={18} aria-hidden="true" /> : <Icon size={18} aria-hidden="true" />}
-        </span>
-        <span className={`mt-1 h-2 w-2 rounded-full ${checked ? 'bg-lime-300' : 'bg-slate-700'}`} aria-hidden="true" />
-      </span>
-      <span className="mt-3 block text-sm font-extrabold text-slate-100">{label}</span>
-      <span className="mt-1 block text-xs font-semibold text-slate-500">{checked ? 'Concluído hoje' : helper}</span>
-    </button>
+export function Today({
+  data,
+  dateKey,
+  todayChecks,
+  todayPlan,
+  onSelectTab,
+  onStartWorkout,
+  onToggleCheck,
+  onManagePlan,
+  onOpenWorkout,
+}: TodayProps) {
+  const now = new Date(`${dateKey}T12:00:00`);
+  const [selectedDay, setSelectedDay] = useState(now.getDay());
+  useEffect(() => setSelectedDay(new Date(`${dateKey}T12:00:00`).getDay()), [dateKey]);
+  const monday = new Date(now);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const weekStart = getLocalDateKey(monday);
+  const selectedPlan = data.weekPlan.find((item) => item.dayIndex === selectedDay) ?? todayPlan;
+  const workout = getWorkoutById(selectedPlan.workoutId, data.workouts);
+  const selectedSession = workout ? data.workoutSessions[getWorkoutSessionId(workout.id, dateKey)] : undefined;
+  const active = data.activeWorkoutSessionId ? data.workoutSessions[data.activeWorkoutSessionId] : undefined;
+  const activeWorkout = active && !active.completedAt ? getWorkoutById(active.workoutId, data.workouts) : undefined;
+  const sessionProgress = selectedSession ? getWorkoutSessionProgress(selectedSession) : null;
+  const weekSessions = Object.values(data.workoutSessions).filter(
+    (session) => session.completedAt && session.dateKey >= weekStart && session.dateKey <= dateKey,
   );
-}
-
-export function Today({ data, dateKey, todayChecks, todayPlan, onSelectTab, onStartWorkout, onToggleCheck }: TodayProps) {
-  const now = new Date();
-  const todayWorkout = getWorkoutById(todayPlan.workoutId, data.workouts);
-  const session = todayWorkout ? data.workoutSessions[getWorkoutSessionId(todayWorkout.id, dateKey)] : undefined;
-  const sessionProgress = session ? getWorkoutSessionProgress(session) : null;
-  const activeMealDay = getActiveMealDay(todayPlan.activityType);
-  const requiredMeals = getRequiredMeals(data.meals, activeMealDay);
-  const mealsCompleted = requiredMeals.filter((meal) => todayChecks.meals[meal.id]).length;
+  const weekDays = new Set(weekSessions.map((session) => session.dateKey)).size;
+  const weekVolume = weekSessions.reduce((total, session) => total + getSessionTrainingSummary(session).volumeKg, 0);
+  const requiredMeals = getRequiredMeals(data.meals, getActiveMealDay(todayPlan.activityType));
+  const mealsDone = requiredMeals.filter((meal) => todayChecks.meals[meal.id]).length;
   const nextMeal = requiredMeals.find((meal) => !todayChecks.meals[meal.id]);
-  const dateLabel = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(now);
-  const isCardioDay = todayPlan.activityType === 'cardio';
-  const isRestDay = todayPlan.activityType === 'rest';
+  const plannedDays = data.weekPlan.filter((item) => item.activityType === 'workout').length;
+  const startSelected = () => {
+    if (workout) onStartWorkout(workout.id);
+    onSelectTab('workout');
+  };
+  const hour = new Date().getHours();
 
   return (
-    <div className="space-y-4">
-      <header className="flex items-start justify-between gap-4 pt-1">
+    <div className="home-page">
+      <header className="home-heading">
         <div>
-          <p className="eyebrow">{dateLabel}</p>
-          <h1 className="page-title mt-2">{getGreeting()}, {data.profile.name}</h1>
-          <p className="mt-2 text-sm text-slate-400">Seu plano de hoje, sem distração.</p>
+          <p className="home-date">
+            {now.toLocaleDateString('pt-BR', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+            })}
+          </p>
+          <h1>
+            {hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'}, {data.profile.name.split(' ')[0]}
+            <span> ✦</span>
+          </h1>
+          <p>Encontre seu ritmo. A evolução vem com você.</p>
         </div>
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-lime-300/15 bg-lime-300/[0.08] text-lime-200" aria-hidden="true">
-          <Activity size={21} />
+        <span className="home-heading-tag">
+          <span />
+          Tudo pronto para hoje
         </span>
       </header>
-
-      <RankCard rank={data.rank} onClick={() => onSelectTab('progress')} />
-
-      <Card className="overflow-hidden border-rose-300/15 bg-gradient-to-br from-rose-400/[0.11] via-slate-900 to-slate-950 p-0" dataTour="today-plan">
-        <div className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="eyebrow">{todayWorkout ? 'Treino principal' : isCardioDay ? 'Cardio programado' : 'Dia de recuperação'}</p>
-              <h2 className="mt-2 text-2xl font-black leading-tight text-white">{todayPlan.title}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-400">
-                {todayWorkout?.focus ?? todayPlan.cardio ?? todayPlan.rest ?? 'Recupere bem para a próxima sessão.'}
-              </p>
-            </div>
-            <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-950 ${
-              todayWorkout ? 'bg-rose-300' : isCardioDay ? 'bg-teal-300' : 'bg-violet-300'
-            }`}>
-              {todayWorkout ? <Dumbbell size={23} aria-hidden="true" /> : isCardioDay ? <HeartPulse size={22} aria-hidden="true" /> : <MoonStar size={22} aria-hidden="true" />}
-            </span>
-          </div>
-
-          {sessionProgress ? (
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                <span>{sessionProgress.completedSetCount}/{sessionProgress.plannedSetCount} séries</span>
-                <span>{sessionProgress.percentage}%</span>
-              </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-950/70" role="progressbar" aria-label="Progresso do treino de hoje" aria-valuemin={0} aria-valuemax={100} aria-valuenow={sessionProgress.percentage}>
-                <div className="h-full rounded-full bg-gradient-to-r from-rose-400 to-amber-300" style={{ width: `${sessionProgress.percentage}%` }} />
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <button
-          className="flex w-full items-center justify-between border-t border-white/10 bg-white/[0.025] px-5 py-4 text-left font-extrabold text-white"
-          type="button"
-          onClick={() => {
-            if (todayWorkout && !session) {
-              onStartWorkout(todayWorkout.id);
-            }
-            onSelectTab(todayWorkout ? 'workout' : isCardioDay ? 'workout' : 'progress');
-          }}
-        >
-          <span>{session?.completedAt ? 'Rever sessão' : session ? 'Continuar treino' : todayWorkout ? 'Começar treino' : isRestDay ? 'Ver progresso' : 'Ver cardio'}</span>
-          <ArrowRight size={19} aria-hidden="true" />
+      <div className="home-stats">
+        <button type="button" onClick={() => onSelectTab('progress')}>
+          <span className="home-stat-icon mint">
+            <Dumbbell size={19} />
+          </span>
+          <span>
+            <small>Treinos nesta semana</small>
+            <strong>
+              {weekSessions.length}
+              <em> / {plannedDays} planejados</em>
+            </strong>
+          </span>
+          <ArrowRight size={17} />
         </button>
-      </Card>
-
-      <section aria-labelledby="daily-actions-title">
-        <div className="flex items-end justify-between gap-3 px-1">
-          <div>
-            <p className="eyebrow">Consistência</p>
-            <h2 className="section-title mt-1" id="daily-actions-title">Metas rápidas</h2>
-          </div>
-          <span className="text-xs font-bold text-slate-500">vale XP uma vez ao dia</span>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2.5">
-          <CheckAction
-            checked={todayChecks.waterDone}
-            icon={Droplets}
-            label="Água"
-            helper={`${data.goals.waterLiters} L · +10 XP`}
-            onClick={() => onToggleCheck('waterDone')}
-          />
-          <CheckAction
-            checked={todayChecks.stepsDone}
-            icon={Footprints}
-            label="Passos"
-            helper="Meta pessoal · +10 XP"
-            onClick={() => onToggleCheck('stepsDone')}
-          />
-          {isCardioDay && todayPlan.cardio ? (
-            <CheckAction
-              checked={todayChecks.cardioDone}
-              icon={HeartPulse}
-              label="Cardio"
-              helper="Programado · +35 XP"
-              onClick={() => onToggleCheck('cardioDone')}
-            />
-          ) : null}
-          <button
-            className="rounded-[1.15rem] border border-white/10 bg-white/[0.035] p-3 text-left"
-            type="button"
-            onClick={() => onSelectTab('diet')}
+        <button type="button" onClick={() => onSelectTab('progress')}>
+          <span className="home-stat-icon peach">
+            <CalendarDays size={19} />
+          </span>
+          <span>
+            <small>Dias em movimento</small>
+            <strong>
+              {weekDays}
+              <em>{weekDays === 1 ? ' dia de musculação' : ' dias de musculação'}</em>
+            </strong>
+          </span>
+          <ArrowRight size={17} />
+        </button>
+        <button type="button" onClick={() => onSelectTab('progress')}>
+          <span className="home-stat-icon lavender">
+            <Sparkles size={19} />
+          </span>
+          <span>
+            <small>Volume da semana</small>
+            <strong>
+              {number.format(weekVolume)}
+              <em> kg registrados</em>
+            </strong>
+          </span>
+          <ArrowRight size={17} />
+        </button>
+      </div>
+      {activeWorkout && active && (
+        <button className="home-resume" type="button" onClick={() => onSelectTab('workout')}>
+          <span className="home-pulse" />
+          <span>
+            Seu treino está em andamento<strong>{activeWorkout.title}</strong>
+          </span>
+          <span className="home-resume-action">
+            Continuar <ArrowRight size={18} />
+          </span>
+        </button>
+      )}
+      <div className="home-columns">
+        <div className="home-main-column">
+          <section className="home-week" aria-labelledby="home-week-title">
+            <div className="home-section-heading">
+              <h2 id="home-week-title">Sua semana</h2>
+              <span>
+                {monday.toLocaleDateString('pt-BR', {
+                  day: 'numeric',
+                  month: 'short',
+                })}{' '}
+                —{' '}
+                {sunday.toLocaleDateString('pt-BR', {
+                  day: 'numeric',
+                  month: 'short',
+                })}
+              </span>
+            </div>
+            <div className="home-week-days">
+              {Array.from({ length: 7 }, (_, index) => {
+                const date = new Date(monday);
+                date.setDate(monday.getDate() + index);
+                const key = getLocalDateKey(date);
+                const plan = data.weekPlan.find((item) => item.dayIndex === date.getDay());
+                const completed = weekSessions.some((session) => session.dateKey === key);
+                return (
+                  <button
+                    type="button"
+                    key={key}
+                    className={`home-week-day ${selectedDay === date.getDay() ? 'is-selected' : ''} ${key === dateKey ? 'is-today' : ''}`}
+                    aria-pressed={selectedDay === date.getDay()}
+                    aria-current={key === dateKey ? 'date' : undefined}
+                    aria-label={`${date.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric' })}, ${plan?.title ?? 'Descanso'}${completed ? ', treino concluído' : ''}`}
+                    onClick={() => setSelectedDay(date.getDay())}
+                  >
+                    <span>{days[date.getDay()]}</span>
+                    <strong>{date.getDate()}</strong>
+                    {completed ? <Check size={12} /> : <i className={plan?.activityType ?? 'rest'} />}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="home-week-caption">
+              <span>
+                <i /> Musculação
+              </span>
+              <span>
+                <i /> Cardio
+              </span>
+              <span>
+                <i /> Recuperação
+              </span>
+              {onManagePlan && (
+                <button type="button" onClick={onManagePlan}>
+                  Editar <ChevronRight size={13} />
+                </button>
+              )}
+            </div>
+          </section>
+          <section
+            className={`home-workout-card ${workout ? '' : 'is-recovery'}`}
+            data-tour="today-plan"
+            aria-labelledby="home-plan-title"
           >
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-300/10 text-teal-200">
-              <Utensils size={18} aria-hidden="true" />
-            </span>
-            <span className="mt-3 block text-sm font-extrabold text-slate-100">Refeições</span>
-            <span className="mt-1 block text-xs font-semibold text-slate-500">{mealsCompleted}/{requiredMeals.length} essenciais</span>
-          </button>
+            <div className="home-workout-label">
+              <span>
+                {selectedDay === now.getDay() ? 'SEU PLANO DE HOJE' : `${days[selectedDay]} · PLANO DA SEMANA`}
+              </span>
+              <span className="home-workout-symbol">
+                {workout ? (
+                  <Dumbbell size={28} />
+                ) : selectedPlan.activityType === 'cardio' ? (
+                  <HeartPulse size={28} />
+                ) : (
+                  <MoonStar size={28} />
+                )}
+              </span>
+            </div>
+            <h2 id="home-plan-title">{selectedPlan.title}</h2>
+            <p>
+              {workout?.focus ??
+                selectedPlan.cardio ??
+                selectedPlan.rest ??
+                'Dê espaço para a recuperação. Seu próximo treino espera por você.'}
+            </p>
+            {workout ? (
+              <div className="home-workout-meta">
+                <span>
+                  <Dumbbell size={15} />
+                  {workout.exercises.length} exercícios
+                </span>
+                <span>
+                  <Clock3 size={15} />~{estimateWorkoutMinutes(workout)} min
+                </span>
+                <span>
+                  <CheckCircle2 size={15} />
+                  {workout.exercises.reduce((total, exercise) => total + exercise.sets, 0)} séries
+                </span>
+              </div>
+            ) : (
+              <p className="home-recovery-note">Consistência também é respeitar o seu descanso.</p>
+            )}
+            {sessionProgress && (
+              <div className="home-session-progress">
+                <span>
+                  {sessionProgress.completedSetCount}/{sessionProgress.plannedSetCount} séries hoje
+                </span>
+                <div>
+                  <i style={{ width: `${sessionProgress.percentage}%` }} />
+                </div>
+              </div>
+            )}
+            <button
+              className="home-primary"
+              type="button"
+              onClick={workout ? startSelected : () => onSelectTab('workout')}
+            >
+              {selectedSession?.completedAt
+                ? 'Ver treino de hoje'
+                : selectedSession
+                  ? 'Continuar este treino'
+                  : workout
+                    ? selectedDay === now.getDay()
+                      ? 'Vamos começar'
+                      : 'Treinar este plano hoje'
+                    : 'Explorar meus treinos'}
+              <ArrowRight size={19} />
+            </button>
+            {selectedDay !== now.getDay() && workout && (
+              <small className="home-plan-note">Ao iniciar, a sessão será registrada hoje.</small>
+            )}
+          </section>
+          <section className="home-routines">
+            <div className="home-section-heading">
+              <h2>Seus treinos, do seu jeito</h2>
+              <button className="text-button" type="button" onClick={() => onSelectTab('workout')}>
+                Ver todos <ArrowRight size={15} />
+              </button>
+            </div>
+            <div className="home-routine-previews">
+              {data.workouts.slice(0, 2).map((routine, index) => (
+                <button
+                  key={routine.id}
+                  type="button"
+                  onClick={() => {
+                    onOpenWorkout?.(routine.id);
+                    onSelectTab('workout');
+                  }}
+                >
+                  <span className={index ? 'lavender' : 'mint'}>
+                    <Dumbbell size={21} />
+                  </span>
+                  <strong>{routine.shortTitle || routine.title}</strong>
+                  <small>{routine.exercises.length} exercícios</small>
+                  <ArrowRight size={16} />
+                </button>
+              ))}
+            </div>
+            {onManagePlan && (
+              <button className="home-create-routine" type="button" onClick={onManagePlan}>
+                <Plus size={16} /> Personalizar minha rotina
+              </button>
+            )}
+          </section>
         </div>
-      </section>
-
-      {nextMeal ? (
-        <button
-          className="flex w-full items-center gap-3 rounded-[1.35rem] border border-white/10 bg-slate-900/65 p-4 text-left"
-          type="button"
-          onClick={() => onSelectTab('diet')}
-        >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-300/10 text-teal-200">
-            <Utensils size={19} aria-hidden="true" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="eyebrow">Próxima refeição · {nextMeal.time}</span>
-            <span className="mt-1 block truncate text-sm font-extrabold text-slate-100">{nextMeal.title}</span>
-          </span>
-          <ArrowRight className="shrink-0 text-slate-500" size={18} aria-hidden="true" />
-        </button>
-      ) : null}
+        <aside className="home-side-column">
+          <section className="home-habits" aria-labelledby="home-habits-title">
+            <div className="home-section-heading">
+              <h2 id="home-habits-title">Pequenos cuidados</h2>
+              <span>HOJE</span>
+            </div>
+            <p>O que acontece fora do treino também conta.</p>
+            <div className="home-habit-list">
+              <button type="button" onClick={() => onToggleCheck('waterDone')} aria-pressed={todayChecks.waterDone}>
+                <span className="home-habit-icon water">
+                  <Droplets size={21} />
+                </span>
+                <span>
+                  <strong>Hidratação</strong>
+                  <small>{data.goals.waterLiters} L de água · meta diária</small>
+                </span>
+                <span className={`home-habit-check ${todayChecks.waterDone ? 'is-checked' : ''}`}>
+                  {todayChecks.waterDone && <Check size={15} />}
+                </span>
+              </button>
+              <button type="button" onClick={() => onToggleCheck('stepsDone')} aria-pressed={todayChecks.stepsDone}>
+                <span className="home-habit-icon steps">
+                  <Footprints size={21} />
+                </span>
+                <span>
+                  <strong>Movimente-se</strong>
+                  <small>Sua meta pessoal de passos</small>
+                </span>
+                <span className={`home-habit-check ${todayChecks.stepsDone ? 'is-checked' : ''}`}>
+                  {todayChecks.stepsDone && <Check size={15} />}
+                </span>
+              </button>
+              {todayPlan.activityType === 'cardio' && (
+                <button type="button" onClick={() => onToggleCheck('cardioDone')} aria-pressed={todayChecks.cardioDone}>
+                  <span className="home-habit-icon cardio">
+                    <HeartPulse size={21} />
+                  </span>
+                  <span>
+                    <strong>Cardio programado</strong>
+                    <small>{todayPlan.cardio}</small>
+                  </span>
+                  <span className={`home-habit-check ${todayChecks.cardioDone ? 'is-checked' : ''}`}>
+                    {todayChecks.cardioDone && <Check size={15} />}
+                  </span>
+                </button>
+              )}
+              <button type="button" onClick={() => onSelectTab('diet')}>
+                <span className="home-habit-icon food">
+                  <Utensils size={21} />
+                </span>
+                <span>
+                  <strong>Alimentação</strong>
+                  <small>
+                    {mealsDone}/{requiredMeals.length} refeições essenciais
+                  </small>
+                </span>
+                <ChevronRight size={17} />
+              </button>
+            </div>
+          </section>
+          <section className="home-consistency">
+            <div className="home-section-heading">
+              <h2>Você está construindo</h2>
+              <Sparkles size={18} />
+            </div>
+            <p>
+              Um pouco de constância.
+              <br />
+              <strong>Muito de você.</strong>
+            </p>
+            <div
+              className="home-week-goal"
+              role="progressbar"
+              aria-label="Dias de treino na semana"
+              aria-valuenow={weekDays}
+              aria-valuemin={0}
+              aria-valuemax={Math.max(plannedDays, weekDays, 1)}
+            >
+              {Array.from({ length: Math.max(plannedDays, 1) }, (_, index) => (
+                <span className={index < weekDays ? 'is-done' : ''} key={index}>
+                  {index < weekDays ? <Check size={16} /> : <Dumbbell size={16} />}
+                </span>
+              ))}
+            </div>
+            <small>
+              {weekDays
+                ? `${weekDays} de ${plannedDays} dias planejados nesta semana.`
+                : 'Sua semana começa com o primeiro treino.'}
+            </small>
+            <button className="text-button" type="button" onClick={() => onSelectTab('progress')}>
+              Acompanhar evolução <ArrowRight size={15} />
+            </button>
+          </section>
+          {nextMeal && (
+            <button className="home-next-meal" type="button" onClick={() => onSelectTab('diet')}>
+              <span className="home-habit-icon food">
+                <Utensils size={20} />
+              </span>
+              <span>
+                <small>PRÓXIMA REFEIÇÃO · {nextMeal.time}</small>
+                <strong>{nextMeal.title}</strong>
+              </span>
+              <ArrowRight size={16} />
+            </button>
+          )}
+          <RankCard rank={data.rank} onClick={() => onSelectTab('progress')} />
+        </aside>
+      </div>
+      <p className="home-footer">Feito para a sua vida real. Um dia de cada vez.</p>
     </div>
   );
 }

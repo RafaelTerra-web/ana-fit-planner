@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ana-fit-planner-v11';
+const CACHE_NAME = 'ana-fit-planner-v12';
 const OFFLINE_MANIFEST_URL = '/offline-assets.json';
 const APP_SHELL = [
   '/',
