@@ -9,7 +9,7 @@ export const defaultProfile: Profile = {
   cardioDays: 2,
   preferredFoods: [],
   avoidedFoods: [],
-  theme: 'dark',
+  theme: 'light',
   objective: 'body-recomposition',
   eatingStyle: 'omnivore',
   mealsPerDay: 4,

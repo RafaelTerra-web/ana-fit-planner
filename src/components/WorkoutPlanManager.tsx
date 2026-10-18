@@ -1,23 +1,10 @@
-import {
-  AlertTriangle,
-  ArrowLeft,
-  ChevronDown,
-  ChevronUp,
-  Dumbbell,
-  Pencil,
-  Plus,
-  Save,
-  Trash2,
-} from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, Dumbbell, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AppData, Exercise, ExerciseTarget, MuscleGroup, WeekPlanItem, Workout } from '../types';
-import {
-  calculateWeeklyVolume,
-  formatSetLabel,
-  getMuscleLabel,
-  muscleOptions,
-} from '../utils/workoutVolume';
+import { calculateWeeklyVolume, formatSetLabel, getMuscleLabel, muscleOptions } from '../utils/workoutVolume';
 import { Card } from './Card';
+import { ExerciseLibrary } from './ExerciseLibrary';
+import type { LibraryExercise } from '../data/exerciseLibrary';
 import { WeekPlanEditor } from './WeekPlanEditor';
 import { WorkoutVolumePanel } from './WorkoutVolumePanel';
 
@@ -104,6 +91,7 @@ function WorkoutEditorModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [message, setMessage] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
   const initialSnapshotRef = useRef(JSON.stringify(workout));
   const exerciseEditingLocked = !isNew && activeWorkoutId === workout.id;
   const isDirty = JSON.stringify(draft) !== initialSnapshotRef.current;
@@ -127,6 +115,22 @@ function WorkoutEditorModal({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') requestClose();
+      if (event.key !== 'Tab') return;
+      const controls = [
+        ...(modalRef.current?.querySelectorAll<HTMLElement>(
+          'button, input, select, textarea, a[href], [tabindex="0"]',
+        ) ?? []),
+      ].filter((element) => !element.hasAttribute('disabled') && element.offsetParent !== null);
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      }
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -137,7 +141,9 @@ function WorkoutEditorModal({
     if (exerciseEditingLocked) return;
     setDraft((current) => ({
       ...current,
-      exercises: current.exercises.map((exercise) => (exercise.id === exerciseId ? { ...exercise, ...changes } : exercise)),
+      exercises: current.exercises.map((exercise) =>
+        exercise.id === exerciseId ? { ...exercise, ...changes } : exercise,
+      ),
     }));
   };
 
@@ -152,19 +158,43 @@ function WorkoutEditorModal({
   const addTarget = (exerciseId: string) => {
     const exercise = draft.exercises.find((item) => item.id === exerciseId);
     if (!exercise) return;
-    updateExercise(exerciseId, { targets: [...exercise.targets, { muscle: 'glutes', role: 'secondary' }] });
+    updateExercise(exerciseId, {
+      targets: [...exercise.targets, { muscle: 'glutes', role: 'secondary' }],
+    });
   };
 
   const removeTarget = (exerciseId: string, targetIndex: number) => {
     const exercise = draft.exercises.find((item) => item.id === exerciseId);
     if (!exercise || exercise.targets.length <= 1) return;
-    updateExercise(exerciseId, { targets: exercise.targets.filter((_, index) => index !== targetIndex) });
+    updateExercise(exerciseId, {
+      targets: exercise.targets.filter((_, index) => index !== targetIndex),
+    });
   };
 
   const addExercise = () => {
     if (exerciseEditingLocked) return;
     const exercise = createExercise();
-    setDraft((current) => ({ ...current, exercises: [...current.exercises, exercise] }));
+    setDraft((current) => ({
+      ...current,
+      exercises: [...current.exercises, exercise],
+    }));
+    setExpandedExerciseId(exercise.id);
+  };
+
+  const addLibraryExercise = (template: LibraryExercise) => {
+    if (exerciseEditingLocked) return;
+    const exercise = {
+      ...template,
+      id: createId('exercise'),
+      targets: template.targets.map((target) => ({ ...target })),
+    };
+    setDraft((current) => ({
+      ...current,
+      exercises:
+        current.exercises.length === 1 && !current.exercises[0].name.trim()
+          ? [exercise]
+          : [...current.exercises, exercise],
+    }));
     setExpandedExerciseId(exercise.id);
   };
 
@@ -172,7 +202,10 @@ function WorkoutEditorModal({
     if (exerciseEditingLocked || draft.exercises.length <= 1) return;
     const exercise = draft.exercises.find((item) => item.id === exerciseId);
     if (!window.confirm(`Remover ${exercise?.name || 'este exercício'}?`)) return;
-    setDraft((current) => ({ ...current, exercises: current.exercises.filter((item) => item.id !== exerciseId) }));
+    setDraft((current) => ({
+      ...current,
+      exercises: current.exercises.filter((item) => item.id !== exerciseId),
+    }));
     setExpandedExerciseId(undefined);
   };
 
@@ -209,7 +242,13 @@ function WorkoutEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[80] bg-slate-950/95 backdrop-blur-xl" role="presentation">
+    <div
+      className="fixed inset-0 z-[80] bg-slate-950/95 backdrop-blur-xl"
+      role="dialog"
+      aria-modal="true"
+      aria-label={isNew ? 'Criar treino' : 'Editar treino'}
+      ref={modalRef}
+    >
       <form className="mx-auto flex h-full w-full max-w-lg flex-col" onSubmit={submit}>
         <header
           className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-slate-950/90 px-4 pb-3"
@@ -237,7 +276,11 @@ function WorkoutEditorModal({
                 className="input"
                 maxLength={60}
                 onChange={(event) => {
-                  setDraft((current) => ({ ...current, title: event.target.value, shortTitle: event.target.value }));
+                  setDraft((current) => ({
+                    ...current,
+                    title: event.target.value,
+                    shortTitle: event.target.value,
+                  }));
                   setMessage('');
                 }}
                 placeholder="Ex.: Glúteos e quadríceps"
@@ -249,7 +292,12 @@ function WorkoutEditorModal({
               <span>Foco ou orientação</span>
               <textarea
                 className="input min-h-20 resize-none"
-                onChange={(event) => setDraft((current) => ({ ...current, focus: event.target.value }))}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    focus: event.target.value,
+                  }))
+                }
                 placeholder="Ex.: Priorizar amplitude e controle"
                 value={draft.focus}
               />
@@ -275,7 +323,10 @@ function WorkoutEditorModal({
             {draft.exercises.map((exercise, exerciseIndex) => {
               const isExpanded = expandedExerciseId === exercise.id;
               return (
-                <section className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-slate-900/70" key={exercise.id}>
+                <section
+                  className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-slate-900/70"
+                  key={exercise.id}
+                >
                   <button
                     aria-expanded={isExpanded}
                     className="flex w-full items-center gap-3 p-3 text-left"
@@ -286,10 +337,18 @@ function WorkoutEditorModal({
                       {exerciseIndex + 1}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-extrabold text-slate-100">{exercise.name || 'Novo exercício'}</span>
-                      <span className="mt-0.5 block text-xs font-semibold text-slate-500">{formatSetLabel(exercise)} · {exercise.reps}</span>
+                      <span className="block truncate text-sm font-extrabold text-slate-100">
+                        {exercise.name || 'Novo exercício'}
+                      </span>
+                      <span className="mt-0.5 block text-xs font-semibold text-slate-500">
+                        {formatSetLabel(exercise)} · {exercise.reps}
+                      </span>
                     </span>
-                    <ChevronDown className={`shrink-0 text-slate-500 transition ${isExpanded ? 'rotate-180' : ''}`} size={18} aria-hidden="true" />
+                    <ChevronDown
+                      className={`shrink-0 text-slate-500 transition ${isExpanded ? 'rotate-180' : ''}`}
+                      size={18}
+                      aria-hidden="true"
+                    />
                   </button>
 
                   {isExpanded ? (
@@ -299,7 +358,11 @@ function WorkoutEditorModal({
                         <input
                           className="input"
                           disabled={exerciseEditingLocked}
-                          onChange={(event) => updateExercise(exercise.id, { name: event.target.value })}
+                          onChange={(event) =>
+                            updateExercise(exercise.id, {
+                              name: event.target.value,
+                            })
+                          }
                           placeholder="Ex.: Leg press"
                           value={exercise.name}
                         />
@@ -311,7 +374,11 @@ function WorkoutEditorModal({
                             className="input"
                             disabled={exerciseEditingLocked}
                             inputMode="numeric"
-                            onChange={(event) => updateExercise(exercise.id, { sets: parseNumericInput(event.target.value) })}
+                            onChange={(event) =>
+                              updateExercise(exercise.id, {
+                                sets: parseNumericInput(event.target.value),
+                              })
+                            }
                             value={exercise.sets}
                           />
                         </label>
@@ -320,7 +387,11 @@ function WorkoutEditorModal({
                           <input
                             className="input"
                             disabled={exerciseEditingLocked}
-                            onChange={(event) => updateExercise(exercise.id, { reps: event.target.value })}
+                            onChange={(event) =>
+                              updateExercise(exercise.id, {
+                                reps: event.target.value,
+                              })
+                            }
                             value={exercise.reps}
                           />
                         </label>
@@ -329,7 +400,11 @@ function WorkoutEditorModal({
                           <input
                             className="input"
                             disabled={exerciseEditingLocked}
-                            onChange={(event) => updateExercise(exercise.id, { rest: event.target.value })}
+                            onChange={(event) =>
+                              updateExercise(exercise.id, {
+                                rest: event.target.value,
+                              })
+                            }
                             placeholder="Ex.: 90 s"
                             value={exercise.rest}
                           />
@@ -339,7 +414,11 @@ function WorkoutEditorModal({
                       <details className="manage-plan mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.025]">
                         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 text-xs font-extrabold text-slate-300">
                           Opções avançadas
-                          <ChevronDown className="manage-chevron text-slate-500 transition" size={16} aria-hidden="true" />
+                          <ChevronDown
+                            className="manage-chevron text-slate-500 transition"
+                            size={16}
+                            aria-hidden="true"
+                          />
                         </summary>
                         <div className="space-y-3 border-t border-white/10 p-3">
                           <div className="grid grid-cols-2 gap-2">
@@ -348,7 +427,11 @@ function WorkoutEditorModal({
                               <input
                                 className="input"
                                 disabled={exerciseEditingLocked}
-                                onChange={(event) => updateExercise(exercise.id, { rir: event.target.value })}
+                                onChange={(event) =>
+                                  updateExercise(exercise.id, {
+                                    rir: event.target.value,
+                                  })
+                                }
                                 value={exercise.rir ?? ''}
                               />
                             </label>
@@ -357,7 +440,11 @@ function WorkoutEditorModal({
                               <select
                                 className="input"
                                 disabled={exerciseEditingLocked}
-                                onChange={(event) => updateExercise(exercise.id, { progressionType: event.target.value as Exercise['progressionType'] })}
+                                onChange={(event) =>
+                                  updateExercise(exercise.id, {
+                                    progressionType: event.target.value as Exercise['progressionType'],
+                                  })
+                                }
                                 value={exercise.progressionType}
                               >
                                 <option value="large">Composto</option>
@@ -370,17 +457,25 @@ function WorkoutEditorModal({
                               checked={Boolean(exercise.unilateral)}
                               className="h-5 w-5 accent-lime-300"
                               disabled={exerciseEditingLocked}
-                              onChange={(event) => updateExercise(exercise.id, { unilateral: event.target.checked })}
+                              onChange={(event) =>
+                                updateExercise(exercise.id, {
+                                  unilateral: event.target.checked,
+                                })
+                              }
                               type="checkbox"
                             />
-                            Séries por perna
+                            Séries por lado
                           </label>
                           <label className="block space-y-1 text-xs font-bold text-slate-400">
                             <span>Nota</span>
                             <textarea
                               className="input min-h-20 resize-none"
                               disabled={exerciseEditingLocked}
-                              onChange={(event) => updateExercise(exercise.id, { note: event.target.value })}
+                              onChange={(event) =>
+                                updateExercise(exercise.id, {
+                                  note: event.target.value,
+                                })
+                              }
                               value={exercise.note ?? ''}
                             />
                           </label>
@@ -399,21 +494,36 @@ function WorkoutEditorModal({
                             </div>
                             <div className="mt-2 space-y-2">
                               {exercise.targets.map((target, targetIndex) => (
-                                <div className="grid grid-cols-[1fr_1fr_auto] gap-2" key={`${exercise.id}-${targetIndex}`}>
+                                <div
+                                  className="grid grid-cols-[1fr_1fr_auto] gap-2"
+                                  key={`${exercise.id}-${targetIndex}`}
+                                >
                                   <select
                                     aria-label={`Músculo-alvo ${targetIndex + 1}`}
                                     className="input min-w-0"
                                     disabled={exerciseEditingLocked}
-                                    onChange={(event) => updateTarget(exercise.id, targetIndex, { muscle: event.target.value as MuscleGroup })}
+                                    onChange={(event) =>
+                                      updateTarget(exercise.id, targetIndex, {
+                                        muscle: event.target.value as MuscleGroup,
+                                      })
+                                    }
                                     value={target.muscle}
                                   >
-                                    {muscleOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                    {muscleOptions.map((option) => (
+                                      <option key={option.value} value={option.value}>
+                                        {option.label}
+                                      </option>
+                                    ))}
                                   </select>
                                   <select
                                     aria-label={`Participação de ${getMuscleLabel(target.muscle)}`}
                                     className="input min-w-0"
                                     disabled={exerciseEditingLocked}
-                                    onChange={(event) => updateTarget(exercise.id, targetIndex, { role: event.target.value as ExerciseTarget['role'] })}
+                                    onChange={(event) =>
+                                      updateTarget(exercise.id, targetIndex, {
+                                        role: event.target.value as ExerciseTarget['role'],
+                                      })
+                                    }
                                     value={target.role}
                                   >
                                     <option value="primary">Principal</option>
@@ -471,8 +581,14 @@ function WorkoutEditorModal({
             })}
           </div>
 
-          <button className="secondary-button mt-3 w-full" disabled={exerciseEditingLocked} onClick={addExercise} type="button">
-            <Plus size={18} aria-hidden="true" /> Adicionar exercício
+          {!exerciseEditingLocked && <ExerciseLibrary onAdd={addLibraryExercise} />}
+          <button
+            className="secondary-button mt-3 w-full"
+            disabled={exerciseEditingLocked}
+            onClick={addExercise}
+            type="button"
+          >
+            <Plus size={18} aria-hidden="true" /> Criar exercício personalizado
           </button>
 
           {!isNew && !showDeleteConfirm ? (
@@ -495,22 +611,36 @@ function WorkoutEditorModal({
                 <button className="secondary-button" onClick={() => setShowDeleteConfirm(false)} type="button">
                   Manter treino
                 </button>
-                <button className="secondary-button border-rose-400/30 bg-rose-500/10 text-rose-100" onClick={onDelete} type="button">
+                <button
+                  className="secondary-button border-rose-400/30 bg-rose-500/10 text-rose-100"
+                  onClick={onDelete}
+                  type="button"
+                >
                   Confirmar exclusão
                 </button>
               </div>
             </div>
           ) : null}
-          {!isNew && workoutCount <= 1 ? <p className="mt-2 text-center text-xs text-slate-500">Mantenha pelo menos um treino cadastrado.</p> : null}
-          {message ? <p className="mt-3 text-sm font-bold text-rose-300" role="alert">{message}</p> : null}
+          {!isNew && workoutCount <= 1 ? (
+            <p className="mt-2 text-center text-xs text-slate-500">Mantenha pelo menos um treino cadastrado.</p>
+          ) : null}
+          {message ? (
+            <p className="mt-3 text-sm font-bold text-rose-300" role="alert">
+              {message}
+            </p>
+          ) : null}
         </div>
 
         <footer
           className="grid shrink-0 grid-cols-2 gap-2 border-t border-white/10 bg-slate-950/95 px-4 pt-3"
           style={{ paddingBottom: 'max(0.85rem, env(safe-area-inset-bottom))' }}
         >
-          <button className="secondary-button" onClick={requestClose} type="button">Cancelar</button>
-          <button className="primary-button" type="submit"><Save size={18} aria-hidden="true" /> Salvar</button>
+          <button className="secondary-button" onClick={requestClose} type="button">
+            Cancelar
+          </button>
+          <button className="primary-button" type="submit">
+            <Save size={18} aria-hidden="true" /> Salvar
+          </button>
         </footer>
       </form>
     </div>
@@ -521,7 +651,10 @@ export function WorkoutPlanManager({ data, onWeekPlanChange, onWorkoutsChange }:
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const activeSession = data.activeWorkoutSessionId ? data.workoutSessions[data.activeWorkoutSessionId] : undefined;
   const activeWorkoutId = activeSession && !activeSession.completedAt ? activeSession.workoutId : undefined;
-  const weeklyVolume = useMemo(() => calculateWeeklyVolume(data.workouts, data.weekPlan), [data.weekPlan, data.workouts]);
+  const weeklyVolume = useMemo(
+    () => calculateWeeklyVolume(data.workouts, data.weekPlan),
+    [data.weekPlan, data.workouts],
+  );
 
   const openExistingWorkout = (workout: Workout) => {
     setEditorState({ isNew: false, workout: cloneWorkout(workout) });
@@ -551,13 +684,14 @@ export function WorkoutPlanManager({ data, onWeekPlanChange, onWorkoutsChange }:
           };
         }
         return item.workoutId === workout.id ? { ...item, title: workout.title } : item;
-      })
+      }),
     );
     setEditorState(null);
   };
 
   const deleteWorkout = () => {
-    if (!editorState || editorState.isNew || data.workouts.length <= 1 || activeWorkoutId === editorState.workout.id) return;
+    if (!editorState || editorState.isNew || data.workouts.length <= 1 || activeWorkoutId === editorState.workout.id)
+      return;
 
     onWorkoutsChange(data.workouts.filter((workout) => workout.id !== editorState.workout.id));
     onWeekPlanChange(
@@ -571,8 +705,8 @@ export function WorkoutPlanManager({ data, onWeekPlanChange, onWorkoutsChange }:
               cardio: undefined,
               rest: 'Recuperação e rotina leve.',
             }
-          : item
-      )
+          : item,
+      ),
     );
     setEditorState(null);
   };
@@ -587,13 +721,17 @@ export function WorkoutPlanManager({ data, onWeekPlanChange, onWorkoutsChange }:
           <div className="min-w-0 flex-1">
             <p className="text-[0.66rem] font-black uppercase tracking-[0.14em] text-lime-300">1 · Crie</p>
             <h2 className="section-title mt-1">Meus treinos</h2>
-            <p className="mt-1 text-sm leading-relaxed text-slate-400">Dê um nome claro e monte os exercícios de cada treino.</p>
+            <p className="mt-1 text-sm leading-relaxed text-slate-400">
+              Dê um nome claro e monte os exercícios de cada treino.
+            </p>
           </div>
         </div>
 
         <div className="mt-4 space-y-2">
           {data.workouts.map((workout) => {
-            const assignedDays = data.weekPlan.filter((item) => item.workoutId === workout.id).map((item) => item.dayLabel);
+            const assignedDays = data.weekPlan
+              .filter((item) => item.workoutId === workout.id)
+              .map((item) => item.dayLabel);
             const isActive = activeWorkoutId === workout.id;
             return (
               <button
@@ -608,7 +746,11 @@ export function WorkoutPlanManager({ data, onWeekPlanChange, onWorkoutsChange }:
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
                     <span className="truncate text-sm font-extrabold text-slate-100">{workout.title}</span>
-                    {isActive ? <span className="shrink-0 rounded-full bg-amber-300/10 px-2 py-0.5 text-[0.6rem] font-black uppercase tracking-wide text-amber-200">Em andamento</span> : null}
+                    {isActive ? (
+                      <span className="shrink-0 rounded-full bg-amber-300/10 px-2 py-0.5 text-[0.6rem] font-black uppercase tracking-wide text-amber-200">
+                        Em andamento
+                      </span>
+                    ) : null}
                   </span>
                   <span className="mt-1 block truncate text-xs font-semibold text-slate-500">
                     {workout.exercises.length} {workout.exercises.length === 1 ? 'exercício' : 'exercícios'} ·{' '}

@@ -1,10 +1,16 @@
-import { Check, ChevronDown, Copy, Dumbbell, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Copy, Dumbbell, Info, Plus, StickyNote, Trash2, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useRestTimer } from '../hooks/useRestTimer';
 import type { Exercise, ExerciseLog, ExerciseSetLog } from '../types';
 import { getExerciseFeedback } from '../utils/progressRules';
+import {
+  getRepeatSetReference,
+  hasSetValues,
+  parseRestSeconds,
+  validateSetCompletion,
+} from '../utils/workoutExperience';
 import { getMuscleLabel } from '../utils/workoutVolume';
-import { Card } from './Card';
+import '../workout-refresh.css';
 
 type ExerciseCardProps = {
   exercise: Exercise;
@@ -16,51 +22,59 @@ type ExerciseCardProps = {
 };
 
 function createSetId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return `set-${crypto.randomUUID()}`;
-  }
-
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return `set-${crypto.randomUUID()}`;
   return `set-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function parseRestSeconds(value: string) {
-  const firstNumber = Number(value.match(/\d+/)?.[0] ?? 0);
-  if (!firstNumber) {
-    return 0;
-  }
-
-  return /min/i.test(value) ? firstNumber * 60 : firstNumber;
-}
-
 function setSummary(set?: ExerciseSetLog) {
-  if (!set || (!set.weight && !set.reps && !set.rir)) {
-    return null;
-  }
-
-  return [set.weight ? `${set.weight} kg` : null, set.reps ? `${set.reps} reps` : null, set.rir ? `RIR ${set.rir}` : null]
-    .filter(Boolean)
-    .join(' · ');
+  if (!set || !hasSetValues(set)) return '—';
+  return (
+    [set.weight ? `${set.weight} kg` : null, set.reps ? `${set.reps} reps` : null].filter(Boolean).join(' × ') || '—'
+  );
 }
 
-export function ExerciseCard({ exercise, log, previousLog, defaultExpanded = false, readOnly = false, onChange }: ExerciseCardProps) {
+export function ExerciseCard({
+  exercise,
+  log,
+  previousLog,
+  defaultExpanded = false,
+  readOnly = false,
+  onChange,
+}: ExerciseCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [validation, setValidation] = useState<{
+    index: number;
+    message: string;
+  } | null>(null);
   const { startRest } = useRestTimer();
   const completedCount = log.sets.slice(0, log.plannedSetCount).filter((set) => set.completed).length;
   const extraSetCount = Math.max(0, log.sets.length - log.plannedSetCount);
   const isComplete = log.plannedSetCount > 0 && completedCount === log.plannedSetCount;
-  const previousSummary = useMemo(() => setSummary(previousLog?.sets.find((set) => set.completed) ?? previousLog?.sets[0]), [previousLog]);
+  const previousSummary = useMemo(
+    () =>
+      setSummary(
+        previousLog?.sets.find((set) => set.completed && hasSetValues(set)) ?? previousLog?.sets.find(hasSetValues),
+      ),
+    [previousLog],
+  );
+  const instructionsId = `instructions-${exercise.id}`;
 
   const updateLog = (changes: Partial<ExerciseLog>) => {
-    if (readOnly) {
-      return;
-    }
-    onChange(exercise.id, { ...log, ...changes });
+    if (!readOnly) onChange(exercise.id, { ...log, ...changes });
   };
 
   const updateSet = (index: number, changes: Partial<ExerciseSetLog>) => {
-    const nextSets = log.sets.map((set, setIndex) => (setIndex === index ? { ...set, ...changes } : set));
-    updateLog({ sets: nextSets });
-
+    if (readOnly) return;
+    const nextSet = { ...log.sets[index], ...changes };
+    const error = changes.completed ? validateSetCompletion(nextSet) : null;
+    if (error) {
+      setValidation({ index, message: error });
+      return;
+    }
+    setValidation(null);
+    updateLog({
+      sets: log.sets.map((set, setIndex) => (setIndex === index ? { ...set, ...changes } : set)),
+    });
     if (changes.completed && !log.sets[index]?.completed) {
       startRest({
         exerciseId: exercise.id,
@@ -71,10 +85,8 @@ export function ExerciseCard({ exercise, log, previousLog, defaultExpanded = fal
   };
 
   const addSet = () => {
-    if (readOnly) {
-      return;
-    }
-    const reference = log.sets[log.sets.length - 1];
+    if (readOnly) return;
+    const reference = getRepeatSetReference(log, log.sets.length, previousLog);
     updateLog({
       sets: [
         ...log.sets,
@@ -91,192 +103,240 @@ export function ExerciseCard({ exercise, log, previousLog, defaultExpanded = fal
   };
 
   const copyPreviousSet = (index: number) => {
-    if (readOnly) {
-      return;
-    }
-    const reference =
-      log.sets[index - 1] ??
-      previousLog?.sets[index] ??
-      (previousLog ? previousLog.sets[previousLog.sets.length - 1] : undefined);
-    if (!reference) {
-      return;
-    }
-
-    updateSet(index, {
-      weight: reference.weight,
-      reps: reference.reps,
-      rir: reference.rir,
-    });
+    const reference = getRepeatSetReference(log, index, previousLog);
+    if (reference)
+      updateSet(index, {
+        weight: reference.weight,
+        reps: reference.reps,
+        rir: reference.rir,
+      });
   };
 
   const removeSet = (index: number) => {
-    if (readOnly || index < log.plannedSetCount) {
-      return;
-    }
+    if (readOnly || index < log.plannedSetCount) return;
     const set = log.sets[index];
-    const hasData = set.completed || Boolean(set.weight || set.reps || set.rir);
-    if (hasData && !window.confirm(`Remover a série ${index + 1} e seus dados?`)) {
-      return;
-    }
-
-    updateLog({
-      sets: log.sets.filter((_, setIndex) => setIndex !== index),
-    });
+    if ((set.completed || hasSetValues(set)) && !window.confirm(`Remover a série ${index + 1} e seus dados?`)) return;
+    updateLog({ sets: log.sets.filter((_, setIndex) => setIndex !== index) });
   };
 
   return (
-    <Card className={`exercise-card overflow-hidden p-0 ${isComplete ? 'is-complete' : ''}`} as="article">
+    <article className={`af-exercise ${isComplete ? 'is-complete' : ''}`}>
       <button
         type="button"
-        className="flex w-full items-start gap-3 p-4 text-left"
+        className="af-exercise-heading"
         onClick={() => setIsExpanded((current) => !current)}
         aria-expanded={isExpanded}
+        aria-controls={`sets-${exercise.id}`}
       >
-        <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isComplete ? 'bg-lime-300 text-slate-950' : 'bg-rose-400/15 text-rose-300'}`}>
-          {isComplete ? <Check size={20} aria-hidden="true" /> : <Dumbbell size={19} aria-hidden="true" />}
+        <span className="af-exercise-icon">
+          {isComplete ? <Check size={21} aria-hidden="true" /> : <Dumbbell size={21} aria-hidden="true" />}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-base font-extrabold leading-tight text-slate-50">{exercise.name}</span>
-          <span className="mt-1.5 block text-xs font-semibold text-slate-400">
-            {completedCount}/{log.plannedSetCount} séries planejadas{extraSetCount ? ` · +${extraSetCount} extra` : ''} · {exercise.reps} · {exercise.rest}
+        <span className="af-exercise-title">
+          <strong>{exercise.name}</strong>
+          <span>
+            {log.plannedSetCount} séries{exercise.unilateral ? ' por lado' : ''} · {exercise.reps} ·{' '}
+            {exercise.rest || 'Descanso livre'}
           </span>
         </span>
-        <ChevronDown className={`mt-2 shrink-0 text-slate-500 transition ${isExpanded ? 'rotate-180' : ''}`} size={19} aria-hidden="true" />
+        <span className="af-exercise-count">
+          {completedCount}/{log.plannedSetCount}
+        </span>
+        <ChevronDown className={isExpanded ? 'af-chevron is-open' : 'af-chevron'} size={18} aria-hidden="true" />
       </button>
 
       {isExpanded ? (
-        <div className="border-t border-white/10 px-4 pb-4 pt-3">
-          <div className="flex flex-wrap gap-1.5">
-            {exercise.targets.map((target, index) => (
-              <span
-                className={`rounded-full px-2.5 py-1 text-[0.68rem] font-extrabold uppercase tracking-wide ${
-                  target.role === 'primary' ? 'bg-rose-400/12 text-rose-200' : 'bg-white/[0.05] text-slate-400'
-                }`}
-                key={`${exercise.id}-${target.muscle}-${target.role}-${index}`}
-              >
-                {getMuscleLabel(target.muscle)}
+        <div className="af-exercise-content" id={`sets-${exercise.id}`}>
+          <div className="af-exercise-tags">
+            {exercise.targets
+              .filter((target) => target.role === 'primary')
+              .map((target, index) => (
+                <span key={`${target.muscle}-${index}`}>{getMuscleLabel(target.muscle)}</span>
+              ))}
+            {exercise.unilateral ? <span>Unilateral</span> : null}
+            {extraSetCount ? (
+              <span>
+                +{extraSetCount} {extraSetCount === 1 ? 'série extra' : 'séries extras'}
               </span>
-            ))}
+            ) : null}
+          </div>
+          <div className="af-previous-session">
+            <TrendingUp size={15} aria-hidden="true" />
+            <span>
+              {previousSummary !== '—' ? (
+                <>
+                  Última sessão <strong>{previousSummary}</strong>
+                </>
+              ) : (
+                'Primeira vez? Registre sua carga de partida.'
+              )}
+            </span>
           </div>
 
-          {exercise.note ? <p className="mt-3 text-sm leading-relaxed text-slate-400">{exercise.note}</p> : null}
-          {previousSummary ? (
-            <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-xs font-semibold text-slate-300">
-              Última sessão: {previousSummary}
-            </p>
-          ) : null}
-
-          <div className="mt-4 space-y-2.5" aria-label={`Séries de ${exercise.name}`}>
+          <div className="af-set-table" aria-label={`Séries de ${exercise.name}`}>
+            <div className="af-set-grid af-set-labels" aria-hidden="true">
+              <span>Série</span>
+              <span>Anterior</span>
+              <span>Kg</span>
+              <span>Reps</span>
+              <span>Feito</span>
+            </div>
             {log.sets.map((set, index) => {
-              const previousSet =
-                previousLog?.sets[index] ?? (previousLog ? previousLog.sets[previousLog.sets.length - 1] : undefined);
+              const previousSet = previousLog?.sets[index] ?? previousLog?.sets[previousLog.sets.length - 1];
+              const repeatReference = getRepeatSetReference(log, index, previousLog);
               return (
-                <fieldset className={`set-row rounded-2xl border p-3 ${set.completed ? 'border-lime-300/25 bg-lime-300/[0.07]' : 'border-white/10 bg-slate-950/35'}`} key={set.id}>
-                  <legend className="sr-only">Série {index + 1}</legend>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-extrabold text-slate-100">Série {index + 1}</p>
-                      <p className="mt-0.5 text-[0.68rem] font-semibold uppercase tracking-wide text-slate-500">
-                        {set.completed ? 'Concluída' : index < log.plannedSetCount ? 'Série planejada' : 'Série extra'}
-                      </p>
-                    </div>
+                <fieldset className={`af-set-row ${set.completed ? 'is-complete' : ''}`} key={set.id}>
+                  <legend className="sr-only">
+                    Série {index + 1} de {exercise.name}
+                  </legend>
+                  <div className="af-set-grid">
+                    <span
+                      className="af-set-number"
+                      title={index >= log.plannedSetCount ? 'Série extra' : 'Série planejada'}
+                    >
+                      {index + 1}
+                      {index >= log.plannedSetCount ? <small>+</small> : null}
+                    </span>
+                    <span className="af-set-previous" aria-label={`Sessão anterior: ${setSummary(previousSet)}`}>
+                      {previousSet?.weight || previousSet?.reps ? (
+                        <>
+                          {previousSet.weight || '—'}
+                          <small>× {previousSet.reps || '—'}</small>
+                        </>
+                      ) : (
+                        '—'
+                      )}
+                    </span>
+                    <input
+                      className="af-set-input"
+                      inputMode="decimal"
+                      placeholder={previousSet?.weight || '—'}
+                      value={set.weight}
+                      readOnly={readOnly || set.completed}
+                      title={set.completed && !readOnly ? 'Desmarque a série para corrigir a carga.' : undefined}
+                      onChange={(event) => updateSet(index, { weight: event.target.value })}
+                      aria-label={`Carga da série ${index + 1} em quilos`}
+                      autoComplete="off"
+                    />
+                    <input
+                      className="af-set-input"
+                      inputMode="numeric"
+                      placeholder={previousSet?.reps || '—'}
+                      value={set.reps}
+                      readOnly={readOnly || set.completed}
+                      title={set.completed && !readOnly ? 'Desmarque a série para corrigir as repetições.' : undefined}
+                      onChange={(event) => updateSet(index, { reps: event.target.value })}
+                      aria-label={`Repetições da série ${index + 1}`}
+                      autoComplete="off"
+                    />
                     <button
-                      className={`flex h-11 w-11 items-center justify-center rounded-xl border transition ${
-                        set.completed ? 'border-lime-300 bg-lime-300 text-slate-950' : 'border-white/12 bg-white/[0.04] text-slate-400'
-                      }`}
+                      className={`af-set-check ${set.completed ? 'is-complete' : ''}`}
                       type="button"
                       disabled={readOnly}
                       onClick={() => updateSet(index, { completed: !set.completed })}
+                      aria-pressed={set.completed}
                       aria-label={set.completed ? `Desmarcar série ${index + 1}` : `Concluir série ${index + 1}`}
                     >
-                      <Check size={19} aria-hidden="true" />
+                      <Check size={20} aria-hidden="true" />
                     </button>
                   </div>
-
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    <label className="space-y-1 text-center text-[0.68rem] font-bold uppercase tracking-wide text-slate-500">
-                      <span>kg</span>
-                      <input
-                        className="set-input"
-                        inputMode="decimal"
-                        placeholder={previousSet?.weight || '—'}
-                        value={set.weight}
-                        readOnly={readOnly}
-                        onChange={(event) => updateSet(index, { weight: event.target.value })}
-                        aria-label={`Carga da série ${index + 1} em quilos`}
-                      />
-                    </label>
-                    <label className="space-y-1 text-center text-[0.68rem] font-bold uppercase tracking-wide text-slate-500">
-                      <span>Reps</span>
-                      <input
-                        className="set-input"
-                        inputMode="numeric"
-                        placeholder={previousSet?.reps || '—'}
-                        value={set.reps}
-                        readOnly={readOnly}
-                        onChange={(event) => updateSet(index, { reps: event.target.value })}
-                        aria-label={`Repetições da série ${index + 1}`}
-                      />
-                    </label>
-                    <label className="space-y-1 text-center text-[0.68rem] font-bold uppercase tracking-wide text-slate-500">
-                      <span>RIR</span>
-                      <input
-                        className="set-input"
-                        inputMode="numeric"
-                        placeholder={previousSet?.rir || '—'}
-                        value={set.rir}
-                        readOnly={readOnly}
-                        onChange={(event) => updateSet(index, { rir: event.target.value })}
-                        aria-label={`RIR da série ${index + 1}`}
-                      />
-                    </label>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between">
-                    <button
-                      className="flex min-h-10 items-center gap-1.5 px-1 text-xs font-bold text-slate-400 disabled:opacity-35"
-                      type="button"
-                      disabled={readOnly || (index === 0 && !previousSet)}
-                      onClick={() => copyPreviousSet(index)}
-                    >
-                      <Copy size={14} aria-hidden="true" /> Copiar anterior
-                    </button>
-                    {!readOnly && index >= log.plannedSetCount ? (
-                      <button
-                        className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 hover:text-rose-300"
-                        type="button"
-                        onClick={() => removeSet(index)}
-                        aria-label={`Remover série ${index + 1}`}
-                      >
-                        <Trash2 size={16} aria-hidden="true" />
-                      </button>
-                    ) : null}
-                  </div>
+                  {validation?.index === index && (
+                    <p className="af-set-error" role="alert">
+                      {validation.message}
+                    </p>
+                  )}
+                  {!readOnly && (repeatReference || index >= log.plannedSetCount) ? (
+                    <div className="af-set-tools">
+                      {repeatReference ? (
+                        <button
+                          className="af-text-button"
+                          type="button"
+                          disabled={set.completed}
+                          onClick={() => copyPreviousSet(index)}
+                          aria-label={`Repetir valores anteriores na série ${index + 1}`}
+                        >
+                          <Copy size={12} aria-hidden="true" /> Repetir {index === 0 ? 'última sessão' : 'anterior'}
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                      {index >= log.plannedSetCount ? (
+                        <button
+                          className="af-remove-set"
+                          type="button"
+                          onClick={() => removeSet(index)}
+                          aria-label={`Remover série ${index + 1}`}
+                        >
+                          <Trash2 size={14} aria-hidden="true" />
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </fieldset>
               );
             })}
           </div>
+          {!readOnly ? (
+            <button className="af-add-set" type="button" onClick={addSet}>
+              <Plus size={16} aria-hidden="true" /> Adicionar série extra
+            </button>
+          ) : null}
 
-          <button className="secondary-button mt-3 w-full" type="button" disabled={readOnly} onClick={addSet}>
-            <Plus size={17} aria-hidden="true" /> Adicionar série
-          </button>
-
-          <label className="mt-3 block space-y-1.5 text-sm font-bold text-slate-300">
-            <span>Nota do exercício</span>
-            <textarea
-              className="input min-h-20 resize-none"
-              placeholder="Técnica, desconforto, ajuste para a próxima…"
-              value={log.note}
-              readOnly={readOnly}
-              onChange={(event) => updateLog({ note: event.target.value })}
-            />
-          </label>
-
-          <p className="smart-feedback mt-3" aria-live="polite">
-            {getExerciseFeedback(exercise, log)}
-          </p>
+          <details className="af-exercise-details" open={undefined}>
+            <summary>
+              <StickyNote size={15} aria-hidden="true" />
+              <span>Esforço e observações{log.note ? ' · com nota' : ''}</span>
+              <ChevronDown size={15} aria-hidden="true" />
+            </summary>
+            <div className="af-detail-body">
+              <p>
+                RIR é quantas repetições você ainda conseguiria fazer.
+                {exercise.rir ? ` Meta: ${exercise.rir}.` : ''}
+              </p>
+              <div className="af-rir-grid">
+                {log.sets.map((set, index) => (
+                  <label key={set.id}>
+                    <span>Série {index + 1}</span>
+                    <input
+                      className="af-set-input"
+                      inputMode="numeric"
+                      placeholder="RIR"
+                      value={set.rir}
+                      readOnly={readOnly}
+                      onChange={(event) => updateSet(index, { rir: event.target.value })}
+                      aria-label={`RIR da série ${index + 1}`}
+                    />
+                  </label>
+                ))}
+              </div>
+              <label className="af-note-label">
+                <span>Nota do exercício</span>
+                <textarea
+                  className="af-note-input"
+                  placeholder="Como foi? Algum ajuste para a próxima?"
+                  value={log.note}
+                  readOnly={readOnly}
+                  onChange={(event) => updateLog({ note: event.target.value })}
+                />
+              </label>
+              <p className="af-smart-feedback" aria-live="polite">
+                {getExerciseFeedback(exercise, log)}
+              </p>
+            </div>
+          </details>
+          {exercise.note ? (
+            <details className="af-exercise-details" id={instructionsId}>
+              <summary>
+                <Info size={15} aria-hidden="true" />
+                <span>Ver orientações</span>
+                <ChevronDown size={15} aria-hidden="true" />
+              </summary>
+              <div className="af-detail-body">
+                <p>{exercise.note}</p>
+              </div>
+            </details>
+          ) : null}
         </div>
       ) : null}
-    </Card>
+    </article>
   );
 }

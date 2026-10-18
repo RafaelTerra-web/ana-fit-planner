@@ -1,6 +1,6 @@
 export type AppTab = 'today' | 'workout' | 'diet' | 'progress' | 'settings';
 
-export type ThemeName = 'dark';
+export type ThemeName = 'light' | 'dark';
 
 export type FitnessObjective = 'body-recomposition' | 'fat-loss' | 'muscle-gain' | 'performance';
 
@@ -163,6 +163,7 @@ export type Exercise = {
   targets: ExerciseTarget[];
   unilateral?: boolean;
   progressionType: 'large' | 'isolation';
+  equipment?: string;
 };
 
 export type Workout = {
@@ -283,6 +284,15 @@ export type ProgressEntry = {
   photoDataUrl?: string;
 };
 
+export type CardioEntry = {
+  id: string;
+  date: string;
+  activity: 'walk' | 'run' | 'bike' | 'elliptical' | 'swim' | 'other';
+  durationMinutes: number;
+  distanceKm?: number;
+  note?: string;
+};
+
 export type AppData = {
   schemaVersion: 5;
   profile: Profile;
@@ -299,4 +309,5 @@ export type AppData = {
   activeWorkoutSessionId: string | null;
   rank: RankState;
   progressEntries: ProgressEntry[];
+  cardioEntries?: CardioEntry[];
 };

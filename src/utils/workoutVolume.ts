@@ -79,7 +79,7 @@ export function formatVolume(value: number) {
 
 export function formatSetLabel(exercise: Exercise) {
   const suffix = exercise.sets === 1 ? 'serie' : 'series';
-  return `${exercise.sets} ${suffix}${exercise.unilateral ? ' por perna' : ''}`;
+  return `${exercise.sets} ${suffix}${exercise.unilateral ? ' por lado' : ''}`;
 }
 
 export function calculateWeeklyVolume(workouts: Workout[], weekPlan: WeekPlanItem[]) {

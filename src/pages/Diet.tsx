@@ -60,7 +60,7 @@ export function Diet({ data, todayChecks, onToggleMeal, onPortionsChange }: Diet
         <p className="text-sm font-semibold text-rose-700">
           {assignedPlan ? 'Plano nutricional atribuído' : `Plano inicial · ${objectiveLabels[objective]}`}
         </p>
-        <h1 className="page-title mt-1">Dieta</h1>
+        <h1 className="page-title mt-1">Alimentação</h1>
         {!assignedPlan ? (
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
             Estimativa inicial baseada no objetivo, na rotina e nas preferências informadas. Você pode ajustar tudo nos Ajustes.
