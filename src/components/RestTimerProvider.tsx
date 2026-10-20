@@ -1,5 +1,5 @@
-import { BellRing, TimerReset, X } from 'lucide-react';
-import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react';
+import { BellRing, Minus, Plus, TimerReset, X } from 'lucide-react';
+import { type PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/authContext';
 import { RestTimerContext, type RestTimer } from '../hooks/useRestTimer';
 import {
@@ -8,152 +8,224 @@ import {
   scheduleRemoteRestAlarm,
   triggerRestCompleteAlarm,
 } from '../utils/restAlarm';
-
-const REST_TIMER_STORAGE_KEY = 'ana-fit-planner:rest-timer:v1';
+import {
+  adjustRestTimer,
+  createRestTimer,
+  formatRestTimer,
+  getRemainingRestSeconds,
+  getRestTimerStorageKey,
+  MAX_REST_SECONDS,
+  parseStoredRestTimer,
+  type RestTimerDetails,
+} from '../utils/restTimer';
+import './rest-timer.css';
 
 type FinishedRest = Pick<RestTimer, 'alarmId' | 'exerciseName'>;
 
 function createAlarmId() {
-  if ('randomUUID' in crypto) return `rest-${crypto.randomUUID()}`;
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return `rest-${crypto.randomUUID()}`;
   return `rest-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function readStoredTimer(storageKey: string): RestTimer | null {
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? 'null') as Partial<RestTimer> | null;
-    if (
-      parsed &&
-      typeof parsed.alarmId === 'string' &&
-      typeof parsed.exerciseId === 'string' &&
-      typeof parsed.exerciseName === 'string' &&
-      typeof parsed.endsAt === 'number' &&
-      typeof parsed.durationSeconds === 'number' &&
-      parsed.endsAt > Date.now() - 10 * 60 * 1_000
-    ) {
-      return parsed as RestTimer;
-    }
+    return parseStoredRestTimer(window.localStorage.getItem(storageKey));
   } catch {
-    // Invalid timers are discarded without affecting workout data.
+    return null;
   }
-
-  return null;
 }
 
-function formatTimer(seconds: number) {
-  const minutes = Math.floor(seconds / 60);
-  return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+function persistTimer(storageKey: string, timer: RestTimer | null) {
+  try {
+    if (timer) window.localStorage.setItem(storageKey, JSON.stringify(timer));
+    else window.localStorage.removeItem(storageKey);
+  } catch {
+    // Private browsing and full storage must not interrupt an in-memory timer.
+  }
 }
 
-export function RestTimerProvider({ children }: PropsWithChildren) {
-  const { user } = useAuth();
-  const storageKey = user ? `${REST_TIMER_STORAGE_KEY}:user:${user.id}` : REST_TIMER_STORAGE_KEY;
+function ScopedRestTimerProvider({ children, storageKey }: PropsWithChildren<{ storageKey: string }>) {
   const [timer, setTimer] = useState<RestTimer | null>(() => readStoredTimer(storageKey));
-  const [remainingSeconds, setRemainingSeconds] = useState(() => (timer ? Math.max(0, Math.ceil((timer.endsAt - Date.now()) / 1_000)) : 0));
+  const timerRef = useRef(timer);
+  const mountedRef = useRef(false);
+  const [remainingSeconds, setRemainingSeconds] = useState(() => (timer ? getRemainingRestSeconds(timer) : 0));
   const [finishedRest, setFinishedRest] = useState<FinishedRest | null>(null);
 
+  const scheduleTimer = useCallback((nextTimer: RestTimer) => {
+    const isCurrent = () => mountedRef.current && timerRef.current?.alarmId === nextTimer.alarmId;
+    void primeRestAlarm()
+      .then(async (endpoint) => {
+        if (!isCurrent()) return;
+        await scheduleRemoteRestAlarm(nextTimer, endpoint);
+        // The permission/subscription request may finish after the rest was replaced.
+        if (!isCurrent()) await cancelRemoteRestAlarm(nextTimer.alarmId);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const replaceTimer = useCallback(
+    (nextTimer: RestTimer | null) => {
+      const previousTimer = timerRef.current;
+      timerRef.current = nextTimer;
+      if (previousTimer && previousTimer.alarmId !== nextTimer?.alarmId)
+        void cancelRemoteRestAlarm(previousTimer.alarmId);
+      persistTimer(storageKey, nextTimer);
+      setTimer(nextTimer);
+      setRemainingSeconds(nextTimer ? getRemainingRestSeconds(nextTimer) : 0);
+    },
+    [storageKey],
+  );
+
   const skipRest = useCallback(() => {
-    if (timer) void cancelRemoteRestAlarm(timer.alarmId);
-    window.localStorage.removeItem(storageKey);
-    setTimer(null);
-    setRemainingSeconds(0);
-  }, [storageKey, timer]);
+    replaceTimer(null);
+    setFinishedRest(null);
+  }, [replaceTimer]);
 
   const startRest = useCallback(
-    ({ exerciseId, exerciseName, durationSeconds }: { exerciseId: string; exerciseName: string; durationSeconds: number }) => {
-      if (durationSeconds <= 0) return;
-      if (timer) void cancelRemoteRestAlarm(timer.alarmId);
-
+    (details: RestTimerDetails) => {
+      const nextTimer = createRestTimer(details, createAlarmId());
+      if (!nextTimer) return;
       setFinishedRest(null);
-      const nextTimer: RestTimer = {
-        alarmId: createAlarmId(),
-        exerciseId,
-        exerciseName,
-        durationSeconds,
-        endsAt: Date.now() + durationSeconds * 1_000,
-      };
-
-      window.localStorage.setItem(storageKey, JSON.stringify(nextTimer));
-      setTimer(nextTimer);
-      setRemainingSeconds(durationSeconds);
-
-      void primeRestAlarm()
-        .then((subscriptionEndpoint) => scheduleRemoteRestAlarm(nextTimer, subscriptionEndpoint))
-        .catch(() => undefined);
+      replaceTimer(nextTimer);
+      scheduleTimer(nextTimer);
     },
-    [storageKey, timer]
+    [replaceTimer, scheduleTimer],
+  );
+
+  const adjustRest = useCallback(
+    (deltaSeconds: number) => {
+      const current = timerRef.current;
+      if (!current || getRemainingRestSeconds(current) === 0) return;
+      const nextTimer = adjustRestTimer(current, deltaSeconds, createAlarmId());
+      if (nextTimer === current) return;
+      replaceTimer(nextTimer);
+      if (getRemainingRestSeconds(nextTimer) > 0) scheduleTimer(nextTimer);
+    },
+    [replaceTimer, scheduleTimer],
   );
 
   useEffect(() => {
-    if (!timer) return;
+    mountedRef.current = true;
+    const restoredTimer = timerRef.current;
+    if (restoredTimer && getRemainingRestSeconds(restoredTimer) > 0) {
+      // Never reuse a restored alarm ID: it may already have a cancellation on the server.
+      const refreshedTimer = { ...restoredTimer, alarmId: createAlarmId() };
+      replaceTimer(refreshedTimer);
+      // Restoring the app must not open a new notification permission prompt.
+      if ('Notification' in window && Notification.permission === 'granted') scheduleTimer(refreshedTimer);
+    }
+    return () => {
+      mountedRef.current = false;
+      // A different account must not inherit or schedule this account's running alarm.
+      if (timerRef.current) void cancelRemoteRestAlarm(timerRef.current.alarmId);
+    };
+  }, [replaceTimer, scheduleTimer]);
 
+  useEffect(() => {
+    if (!timer) return;
     const updateTimer = () => {
-      const nextRemaining = Math.max(0, Math.ceil((timer.endsAt - Date.now()) / 1_000));
+      if (timerRef.current?.alarmId !== timer.alarmId) return;
+      const now = Date.now();
+      const nextRemaining = getRemainingRestSeconds(timer, now);
       setRemainingSeconds(nextRemaining);
       if (nextRemaining > 0) return;
-
-      const lateBy = Date.now() - timer.endsAt;
-      window.localStorage.removeItem(storageKey);
-      setTimer(null);
+      replaceTimer(null);
       setFinishedRest({ alarmId: timer.alarmId, exerciseName: timer.exerciseName });
-      void cancelRemoteRestAlarm(timer.alarmId);
-      void triggerRestCompleteAlarm(timer, lateBy < 5_000);
+      void triggerRestCompleteAlarm(timer, now - timer.endsAt < 5000);
     };
-
     updateTimer();
     const interval = window.setInterval(updateTimer, 250);
-    return () => window.clearInterval(interval);
-  }, [storageKey, timer]);
+    // Browser intervals can be suspended while the screen is locked.
+    document.addEventListener('visibilitychange', updateTimer);
+    window.addEventListener('focus', updateTimer);
+    window.addEventListener('pageshow', updateTimer);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', updateTimer);
+      window.removeEventListener('focus', updateTimer);
+      window.removeEventListener('pageshow', updateTimer);
+    };
+  }, [replaceTimer, timer]);
 
   useEffect(() => {
     if (!finishedRest) return;
-    const timeout = window.setTimeout(() => setFinishedRest(null), 15_000);
+    const timeout = window.setTimeout(() => setFinishedRest(null), 15000);
     return () => window.clearTimeout(timeout);
   }, [finishedRest]);
 
-  const value = useMemo(() => ({ timer, remainingSeconds, startRest, skipRest }), [remainingSeconds, skipRest, startRest, timer]);
+  const value = useMemo(
+    () => ({ timer, remainingSeconds, startRest, adjustRest, skipRest }),
+    [adjustRest, remainingSeconds, skipRest, startRest, timer],
+  );
+  const remainingRatio = timer ? Math.min(100, (remainingSeconds / timer.durationSeconds) * 100) : 0;
 
   return (
     <RestTimerContext.Provider value={value}>
       {children}
-
       {timer && remainingSeconds > 0 ? (
-        <aside
-          className="fixed left-1/2 z-[70] flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-lime-300/30 bg-slate-950/95 px-3 py-2.5 shadow-[0_16px_55px_rgba(0,0,0,0.55)] backdrop-blur-xl"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 6.4rem)', maxWidth: '28rem', width: 'calc(100% - 1.5rem)' }}
-          role="timer"
-          aria-live="polite"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lime-300/12 text-lime-300">
-            <TimerReset size={20} aria-hidden="true" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[0.67rem] font-extrabold uppercase tracking-widest text-slate-500">Descanso</span>
-            <span className="block truncate text-sm font-extrabold text-slate-100">{timer.exerciseName}</span>
-          </span>
-          <span className="font-mono text-lg font-black tabular-nums text-lime-200">{formatTimer(remainingSeconds)}</span>
-          <button className="min-h-10 px-1 text-xs font-extrabold text-slate-400" type="button" onClick={skipRest}>Pular</button>
+        <aside className="rest-timer" aria-label={`Descanso de ${timer.exerciseName}`}>
+          <div className="rest-timer-heading">
+            <span className="rest-timer-icon">
+              <TimerReset size={21} aria-hidden="true" />
+            </span>
+            <span className="rest-timer-exercise">
+              <span>Recupere o fôlego</span>
+              <strong>{timer.exerciseName}</strong>
+            </span>
+            <span
+              className="rest-timer-clock"
+              role="timer"
+              aria-live="off"
+              aria-label={`${remainingSeconds} segundos de descanso restantes`}
+            >
+              {formatRestTimer(remainingSeconds)}
+            </span>
+          </div>
+          <div className="rest-timer-progress" aria-hidden="true">
+            <span style={{ width: `${remainingRatio}%` }} />
+          </div>
+          <div className="rest-timer-controls">
+            <button type="button" onClick={() => adjustRest(-15)} aria-label="Diminuir descanso em 15 segundos">
+              <Minus size={15} aria-hidden="true" /> 15 s
+            </button>
+            <button
+              type="button"
+              onClick={() => adjustRest(30)}
+              disabled={remainingSeconds >= MAX_REST_SECONDS}
+              aria-label="Aumentar descanso em 30 segundos"
+            >
+              <Plus size={15} aria-hidden="true" /> 30 s
+            </button>
+            <button className="rest-timer-skip" type="button" onClick={skipRest}>
+              Pular descanso
+            </button>
+          </div>
         </aside>
       ) : null}
-
       {finishedRest ? (
-        <aside
-          className="fixed left-1/2 top-0 z-[100] flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-lime-200/40 bg-lime-300 p-3 text-slate-950 shadow-[0_18px_70px_rgba(190,242,100,0.32)] animate-[pulse_1s_ease-in-out_2]"
-          style={{ marginTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)', maxWidth: '28rem', width: 'calc(100% - 1.5rem)' }}
-          role="alert"
-          aria-live="assertive"
-        >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-lime-300">
-            <BellRing size={23} aria-hidden="true" />
+        <aside className="rest-timer-complete" role="alert" aria-atomic="true">
+          <span className="rest-timer-complete-icon">
+            <BellRing size={24} aria-hidden="true" />
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-base font-black">Descanso acabou!</span>
-            <span className="block truncate text-xs font-bold text-slate-800">{finishedRest.exerciseName} · próxima série</span>
+          <span className="rest-timer-complete-copy">
+            <strong>Descanso acabou!</strong>
+            <span>{finishedRest.exerciseName} · próxima série</span>
           </span>
-          <button className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950/10" type="button" onClick={() => setFinishedRest(null)} aria-label="Fechar alerta">
-            <X size={20} aria-hidden="true" />
+          <button type="button" onClick={() => setFinishedRest(null)} aria-label="Fechar alerta de descanso">
+            <X size={21} aria-hidden="true" />
           </button>
         </aside>
       ) : null}
     </RestTimerContext.Provider>
+  );
+}
+
+export function RestTimerProvider({ children }: PropsWithChildren) {
+  const { user } = useAuth();
+  const storageKey = getRestTimerStorageKey(user?.id);
+  return (
+    <ScopedRestTimerProvider key={storageKey} storageKey={storageKey}>
+      {children}
+    </ScopedRestTimerProvider>
   );
 }

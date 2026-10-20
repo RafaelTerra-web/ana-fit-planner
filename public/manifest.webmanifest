@@ -4,8 +4,8 @@
   "description": "Treino por séries, hábitos, dieta, progresso e ranks do Ferro ao Olympia.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f5f7f6",
-  "theme_color": "#f5f7f6",
+  "background_color": "#0d1515",
+  "theme_color": "#0d1515",
   "orientation": "portrait",
   "icons": [
     {

@@ -16,6 +16,8 @@ export type Profile = {
   preferredFoods: string[];
   avoidedFoods: string[];
   theme: ThemeName;
+  /** Explicit appearance choice; legacy releases forced `theme` to light. */
+  uiTheme?: ThemeName;
   onboardingCompleted?: boolean;
   objective?: FitnessObjective;
   eatingStyle?: EatingStyle;

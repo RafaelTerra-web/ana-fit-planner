@@ -2,6 +2,18 @@
 
 PWA mobile-first para acompanhar treino, alimentação, cardio, hábitos e progresso corporal em perfis individuais.
 
+## Atualização 1.2 · dentro da academia
+
+- Tema escuro como padrão, com destaque mint, maior contraste e opção Claro/Escuro nos Ajustes. A escolha explícita fica salva por perfil; o claro imposto pela versão 1.1 passa para escuro uma única vez.
+- Sessões em andamento abrem no modo academia: agenda, biblioteca e cardio recolhidos, progresso no topo, atalhos para séries pendentes e troca direta de exercício quando o aparelho estiver ocupado.
+- Ajustes rápidos de carga (passos de 0,5/1/2,5/5 kg), repetições e botão de 0 kg para exercícios sem carga externa.
+- Preenchimento opcional de séries vazias a partir da última sessão finalizada. Valores já digitados e séries concluídas são preservados; nenhuma série é marcada como feita automaticamente.
+- Concluir uma série é uma ação única, protegida contra dois toques. Para alterar valores, use Corrigir. Essa ação também cancela o descanso da série correspondente.
+- Descanso com −15 s, +30 s e Pular, persistência isolada por conta e contagem por horário absoluto. Cada alteração reagenda o alarme, até o limite de 10 minutos. Finalizar o treino encerra o descanso.
+- Botão Manter tela acesa, com liberação ao sair do modo academia e nova solicitação ao retornar ao app. Depende do suporte e das condições de energia do aparelho; falhas mostram um aviso no próprio controle.
+
+As sessões e os critérios de XP continuam iguais. As melhorias de retomada do descanso não alteram a autenticação: abrir uma conta do zero sem internet ainda pode exigir reconexão para validar a sessão.
+
 ## Atualização 1.1 · sua rotina, seu ritmo
 
 - Interface clara com navegação fixa no celular e lateral no desktop.
@@ -14,7 +26,7 @@ PWA mobile-first para acompanhar treino, alimentação, cardio, hábitos e progr
 - Cardio com atividade, data, duração, distância opcional e observação; totais por período. Registrar o cardio programado para hoje marca a meta automaticamente e mantém o limite de XP diário.
 - Exportação de cópia completa em JSON e das séries em CSV nos Ajustes.
 
-Dados existentes continuam na estrutura v5 e na mesma conta. O novo campo opcional `cardioEntries` inicia vazio em cópias antigas. O tema passa a ser claro; histórico, plano nutricional atribuído, sincronização e critérios de XP são preservados. A duração mede o intervalo entre início e finalização, incluindo pausas; não estima tempo em atividade. Recordes comparam a maior carga externa de uma série válida e não são uma medida clínica de evolução.
+Dados existentes continuam na estrutura v5 e na mesma conta. O campo opcional `cardioEntries` inicia vazio em cópias antigas. Histórico, plano nutricional atribuído, sincronização e critérios de XP são preservados. A duração mede o intervalo entre início e finalização, incluindo pausas; não estima tempo em atividade. Recordes comparam a maior carga externa de uma série válida e não são uma medida clínica de evolução.
 
 O PWA mantém as notificações já existentes; esta atualização não adiciona Live Activities, HealthKit ou widgets nativos do iPhone.
 
@@ -80,7 +92,7 @@ npm run test:render
 npm run build
 ```
 
-Os testes usam Node.js 22.6 ou superior para ler TypeScript. A checagem `test:render` renderiza as cinco áreas com React no servidor, incluindo cenários com dados persistidos; ela não substitui uma revisão visual em navegador.
+Use Node.js 24 para desenvolvimento e testes. `npm test` verifica regras de domínio e interações React em DOM simulado, incluindo toque duplo, correção, ajustes rápidos, navegação, preferência de tema, trava de tela e ciclo de vida dos alarmes. `test:render` renderiza as cinco áreas com React no servidor, incluindo cenários com dados persistidos. Esses testes não substituem uma revisão visual em navegador ou as notificações em um dispositivo físico.
 
 ## Deploy no Netlify
 

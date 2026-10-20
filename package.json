@@ -1,7 +1,7 @@
 {
   "name": "ana-fit-planner",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "description": "PWA mobile-first para organizar treinos, alimentação, hábitos e evolução.",
   "scripts": {
@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test scripts/*.test.mjs",
+    "test": "node --experimental-strip-types --test --test-concurrency=1 scripts/*.test.mjs",
     "test:render": "node scripts/render-smoke.mjs",
     "invite:ana": "node scripts/invite-ana.mjs",
     "assign:nutrition": "node scripts/assign-nutrition-plan.mjs"
@@ -32,6 +32,7 @@
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.18",
     "globals": "^15.14.0",
+    "jsdom": "^29.1.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
