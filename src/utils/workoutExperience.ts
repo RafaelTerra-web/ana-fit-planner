@@ -34,12 +34,40 @@ export function validateSetCompletion(set: ExerciseSetLog) {
 }
 
 export function getRepeatSetReference(log: ExerciseLog, index: number, previousLog?: ExerciseLog) {
-  const earlierSet = log.sets.slice(0, index).reverse().find(hasSetValues);
+  const valid = (set?: ExerciseSetLog): set is ExerciseSetLog => Boolean(set && !validateSetCompletion(set));
+  const earlierSet =
+    log.sets
+      .slice(0, index)
+      .reverse()
+      .find((set) => set.completed && valid(set)) ?? log.sets.slice(0, index).reverse().find(valid);
   if (earlierSet) return earlierSet;
   const correspondingPrevious = previousLog?.sets[index];
-  return hasSetValues(correspondingPrevious)
+  return valid(correspondingPrevious) && correspondingPrevious.completed
     ? correspondingPrevious
-    : previousLog?.sets.slice().reverse().find(hasSetValues);
+    : previousLog?.sets
+        .slice()
+        .reverse()
+        .find((set) => set.completed && valid(set));
+}
+
+export function adjustSetValue(value: string, delta: number, field: 'weight' | 'reps') {
+  const parsed = Number(value.trim().replace(',', '.'));
+  const current = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  const next = Math.max(0, Math.round((current + delta) * 100) / 100);
+  return String(field === 'reps' ? Math.round(next) : next).replace('.', ',');
+}
+
+export function fillEmptySetsFromHistory(log: ExerciseLog, previousLog?: ExerciseLog): ExerciseLog {
+  if (!previousLog) return log;
+  let changed = false;
+  const sets = log.sets.map((set, index) => {
+    if (set.completed || set.weight.trim() || set.reps.trim()) return set;
+    const reference = getRepeatSetReference({ ...log, sets: [] }, index, previousLog);
+    if (!reference) return set;
+    changed = true;
+    return { ...set, weight: reference.weight, reps: reference.reps, rir: set.rir || reference.rir };
+  });
+  return changed ? { ...log, sets } : log;
 }
 
 export function estimateWorkoutMinutes(workout: Workout) {

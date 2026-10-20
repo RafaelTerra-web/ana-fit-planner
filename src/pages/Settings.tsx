@@ -5,11 +5,13 @@ import {
   CloudOff,
   Download,
   LogOut,
+  Moon,
   RefreshCw,
   RotateCcw,
   Save,
   Send,
   ShieldCheck,
+  Sun,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth, type ForgetAfterDays } from '../auth/authContext';
@@ -169,6 +171,44 @@ export function Settings({
           <CircleHelp size={16} aria-hidden="true" /> Tour do app
         </button>
       </header>
+
+      <Card>
+        <div className="utility-section-heading">
+          <div>
+            <h2 className="section-title">Aparência</h2>
+            <p className="utility-description">Escolha a luz que combina com seu treino.</p>
+          </div>
+          <span className="utility-icon">
+            <Moon size={20} aria-hidden="true" />
+          </span>
+        </div>
+        <div className="theme-choices" role="group" aria-label="Tema do aplicativo">
+          <button
+            className="theme-choice"
+            type="button"
+            aria-pressed={(data.profile.uiTheme ?? 'dark') === 'dark'}
+            onClick={() => onProfileChange({ uiTheme: 'dark' })}
+          >
+            <Moon size={20} aria-hidden="true" />
+            <span>
+              <strong>Escuro</strong>
+              <small>Foco e contraste na academia</small>
+            </span>
+          </button>
+          <button
+            className="theme-choice"
+            type="button"
+            aria-pressed={data.profile.uiTheme === 'light'}
+            onClick={() => onProfileChange({ uiTheme: 'light' })}
+          >
+            <Sun size={20} aria-hidden="true" />
+            <span>
+              <strong>Claro</strong>
+              <small>Uma rotina com mais luz</small>
+            </span>
+          </button>
+        </div>
+      </Card>
 
       {cloudEnabled && user ? (
         <Card>

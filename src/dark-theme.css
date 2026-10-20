@@ -1,0 +1,906 @@
+/* Appearance is explicit so the light layout remains available in Settings. */
+:root {
+  --color-inverse: #fff;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --color-canvas: #0d1515;
+  --color-canvas-soft: #101a1a;
+  --color-surface: #151f20;
+  --color-surface-raised: #1c2929;
+  --color-border: #2c3c3c;
+  --color-border-strong: #4b9581;
+  --color-text: #eef4f1;
+  --color-muted: #a8b9b3;
+  --color-lime: #73dfbe;
+  --color-mint: #73dfbe;
+  --color-rose: #f3a597;
+  --color-amber: #e9c179;
+  --color-inverse: #092e26;
+  --shadow-card: 0 4px 18px #00000012;
+  background: var(--color-canvas);
+  color: var(--color-text);
+}
+
+html[data-theme='dark'] body {
+  background: var(--color-canvas);
+  color: var(--color-text);
+}
+
+html[data-theme='dark'] ::selection {
+  background: #367e6b;
+  color: #fff;
+}
+html[data-theme='dark'] :where(button, a, input, textarea, select):focus-visible {
+  outline-color: var(--color-mint);
+}
+
+/* Shared controls and the older utility-based nutrition/account screens. */
+html[data-theme='dark']
+  :is(
+    .premium-card,
+    .app-page [class*='bg-slate-9'],
+    .app-page [class*='bg-white/'],
+    .app-page .bg-white,
+    .auth-page [class*='bg-slate-9'],
+    .auth-page [class*='bg-white/']
+  ) {
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+}
+html[data-theme='dark']
+  :is(.app-page [class*='from-slate-9'], .app-page .premium-card[class*='bg-gradient'], .app-page .rank-details) {
+  background: var(--color-surface);
+}
+html[data-theme='dark']
+  :is(.app-page [class*='border-white/'], .app-page [class*='border-slate-'], .auth-page [class*='border-white/']) {
+  border-color: var(--color-border);
+}
+html[data-theme='dark']
+  :is(
+    .text-white,
+    .text-slate-50,
+    .text-slate-100,
+    .text-slate-200,
+    .text-slate-950,
+    .text-slate-900,
+    .text-slate-800
+  ) {
+  color: var(--color-text);
+}
+html[data-theme='dark'] :is(.text-slate-300, .text-slate-700) {
+  color: #c4d3cc;
+}
+html[data-theme='dark'] :is(.text-slate-400, .text-slate-500, .text-slate-600) {
+  color: var(--color-muted);
+}
+html[data-theme='dark']
+  :is(
+    .text-lime-100,
+    .text-lime-200,
+    .text-lime-300,
+    .text-teal-100,
+    .text-teal-200,
+    .text-teal-300,
+    .text-teal-600,
+    .text-teal-700
+  ) {
+  color: var(--color-mint);
+}
+html[data-theme='dark'] :is(.text-amber-100, .text-amber-200, .text-amber-300, .text-amber-700) {
+  color: var(--color-amber);
+}
+html[data-theme='dark'] :is(.text-rose-100, .text-rose-200, .text-rose-300, .text-rose-700, .text-red-700) {
+  color: var(--color-rose);
+}
+html[data-theme='dark'] :is(.text-violet-200, .text-violet-700) {
+  color: #c9b3ee;
+}
+html[data-theme='dark'] :is(.bg-slate-100, .bg-slate-700, .bg-slate-800) {
+  background-color: var(--color-surface-raised);
+}
+html[data-theme='dark'] :is(.app-page [class*='bg-slate-950/'], .auth-page [class*='bg-slate-950/']) {
+  background-color: #111a1a;
+}
+html[data-theme='dark']
+  :is(
+    .app-page [class*='bg-lime-300/'],
+    .app-page [class*='bg-teal-300/'],
+    .auth-page [class*='bg-lime-300/'],
+    .bg-teal-50,
+    .bg-teal-50\/60
+  ) {
+  background-color: #1b3730;
+}
+html[data-theme='dark']
+  :is(.app-page [class*='border-lime-300/'], .app-page [class*='border-teal-300/'], .border-teal-200) {
+  border-color: #3c695b;
+}
+html[data-theme='dark']
+  :is(.app-page [class*='bg-lime-300']:not([class*='/']), .app-page [class*='bg-rose-300']:not([class*='/'])) {
+  background-color: var(--color-mint);
+  color: var(--color-inverse);
+}
+html[data-theme='dark'] .app-page [class*='bg-lime-300']:not([class*='/']) :is(.text-slate-950, .text-slate-900) {
+  color: var(--color-inverse);
+}
+html[data-theme='dark'] :is(.bg-rose-50, .app-page [class*='bg-rose-300/']) {
+  background-color: #392a29;
+}
+html[data-theme='dark'] :is(.bg-amber-50, .app-page [class*='bg-amber-300/']) {
+  background-color: #383126;
+}
+html[data-theme='dark'] :is(.app-page [class*='bg-violet-300/']) {
+  background-color: #2c283b;
+}
+
+html[data-theme='dark'] :is(.input, .set-input, .auth-input, .training-select, .af-set-input, .af-note-input) {
+  border-color: #3a4d47;
+  background: #101a19;
+  color: var(--color-text);
+  caret-color: var(--color-mint);
+}
+html[data-theme='dark'] :is(.input, .set-input, .auth-input, .af-set-input, .af-note-input)::placeholder {
+  color: #869e94;
+}
+html[data-theme='dark'] :is(.input, .set-input, .auth-input, .training-select, .af-set-input, .af-note-input):focus {
+  background: #172823;
+  border-color: var(--color-mint);
+  outline-color: var(--color-mint);
+  box-shadow: 0 0 0 3px #73dfbe17;
+}
+html[data-theme='dark'] .input:focus-visible {
+  background: #172823;
+}
+html[data-theme='dark'] :is(.primary-button, .home-primary, .af-primary-button, .rank-levelup-button) {
+  background: var(--color-mint);
+  border-color: var(--color-mint);
+  color: var(--color-inverse);
+  box-shadow: none;
+}
+html[data-theme='dark'] :is(.primary-button, .home-primary, .af-primary-button, .rank-levelup-button):hover {
+  background: #97eccc;
+}
+html[data-theme='dark'] :is(.secondary-button, .af-secondary-button) {
+  background: var(--color-surface-raised);
+  border-color: var(--color-border);
+  color: #d5e4dc;
+}
+html[data-theme='dark'] :is(.secondary-button, .af-secondary-button):hover {
+  background: #283e34;
+  border-color: #538d75;
+}
+html[data-theme='dark'] :is(.text-button, .af-text-button, .af-set-tools .af-text-button, .utility-success) {
+  color: var(--color-mint);
+}
+html[data-theme='dark'] :is(.utility-description, .utility-fine-print, .utility-empty, .icon-button) {
+  color: var(--color-muted);
+}
+html[data-theme='dark'] :is(.utility-error, .icon-button:hover, .af-remove-set) {
+  color: #f2aaa0;
+}
+html[data-theme='dark'] :is(.utility-icon, .smart-feedback, .af-smart-feedback) {
+  background: #1a352c;
+  color: #b1d9c3;
+  border-color: #335f4b;
+}
+
+/* App chrome retains the refreshed layout with a quiet, darker rail. */
+html[data-theme='dark'] .app-topbar {
+  border-color: var(--color-border);
+}
+html[data-theme='dark'] .app-brand {
+  color: var(--color-text);
+}
+html[data-theme='dark'] .app-brand-icon {
+  background: var(--color-mint);
+  color: var(--color-inverse);
+}
+html[data-theme='dark'] .app-brand-accent {
+  color: var(--color-mint);
+}
+html[data-theme='dark']
+  :is(
+    .app-brand small,
+    .app-location,
+    .app-location span,
+    .sync-indicator,
+    .nav-eyebrow,
+    .nav-note p,
+    .nav-note > span
+  ) {
+  color: var(--color-muted);
+}
+html[data-theme='dark'] :is(.app-location strong, .nav-note strong) {
+  color: #cfddd5;
+}
+html[data-theme='dark'] :is(.sync-indicator--offline, .sync-indicator--error) {
+  color: var(--color-amber);
+}
+html[data-theme='dark'] .app-avatar {
+  background: #294038;
+  border-color: var(--color-surface);
+  color: #beebd5;
+}
+html[data-theme='dark'] .app-avatar svg {
+  background: var(--color-surface);
+  color: var(--color-mint);
+}
+html[data-theme='dark'] .bottom-nav {
+  background: #111c1bf7;
+  border-color: var(--color-border);
+}
+html[data-theme='dark'] .bottom-nav-item {
+  color: #a7b9b0;
+}
+html[data-theme='dark'] .bottom-nav-item.is-active {
+  background: #233c31;
+  color: #8de3bb;
+}
+html[data-theme='dark'] .bottom-nav-item:hover {
+  color: #a0efcd;
+}
+html[data-theme='dark'] .nav-note {
+  background: #192822;
+  color: #91b49c;
+}
+
+/* Home: mint and amber keep their purpose without bright white panels. */
+html[data-theme='dark']
+  :is(.home-stats > button, .home-week, .home-habits, .home-next-meal, .home-routine-previews > button) {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+html[data-theme='dark']
+  :is(
+    .home-heading h1,
+    .home-stats strong,
+    .home-section-heading h2,
+    .home-habit-list strong,
+    .home-routine-previews strong
+  ) {
+  color: var(--color-text);
+}
+html[data-theme='dark']
+  :is(
+    .home-date,
+    .home-heading div > p:last-child,
+    .home-heading-tag,
+    .home-stats small,
+    .home-stats em,
+    .home-stats > button > svg,
+    .home-section-heading > span,
+    .home-week-caption,
+    .home-habits > p,
+    .home-habit-list small,
+    .home-habit-list > button > svg,
+    .home-next-meal > svg,
+    .home-routine-previews small,
+    .home-routine-previews > button > svg,
+    .home-footer
+  ) {
+  color: var(--color-muted);
+}
+html[data-theme='dark'] .home-heading h1 span {
+  color: var(--color-amber);
+}
+html[data-theme='dark'] .mint {
+  background: #214031;
+  color: #95dcb2;
+}
+html[data-theme='dark'] .peach {
+  background: #3b3225;
+  color: #e9c179;
+}
+html[data-theme='dark'] .lavender {
+  background: #302b3c;
+  color: #c7b4e8;
+}
+html[data-theme='dark'] .home-week-day {
+  color: #d5e2d9;
+}
+html[data-theme='dark'] .home-week-day > span {
+  color: #a4b7ac;
+}
+html[data-theme='dark'] .home-week-day.is-selected {
+  background: var(--color-mint);
+  color: var(--color-inverse);
+}
+html[data-theme='dark'] .home-week-day.is-selected > span {
+  color: #1c5c45;
+}
+html[data-theme='dark'] .home-week-day.is-selected > i {
+  background: #276a50;
+}
+html[data-theme='dark'] :is(.home-week-caption, .home-habit-list > button) {
+  border-color: var(--color-border);
+}
+html[data-theme='dark'] .home-week-caption button {
+  color: #a3cdb4;
+}
+html[data-theme='dark'] .home-workout-card {
+  background: #19352b;
+  border-color: #355c47;
+}
+html[data-theme='dark'] .home-workout-card.is-recovery {
+  background: #252d24;
+  border-color: #424f39;
+}
+html[data-theme='dark'] .home-workout-card::after {
+  border-color: #73dfbe16;
+  box-shadow:
+    0 0 0 27px #73dfbe06,
+    0 0 0 54px #73dfbe04;
+}
+html[data-theme='dark'] .home-workout-label > span:first-child {
+  color: #9ad3b0;
+}
+html[data-theme='dark'] .home-workout-symbol {
+  background: #294a37;
+  border-color: #3e654c;
+  color: #ace0ba;
+}
+html[data-theme='dark'] .home-workout-card h2 {
+  color: #eff8f1;
+}
+html[data-theme='dark']
+  :is(.home-workout-card > p, .home-workout-meta > span, .home-plan-note, .home-session-progress > span) {
+  color: #b2cdbb;
+}
+html[data-theme='dark'] .home-session-progress > div {
+  background: #355744;
+}
+html[data-theme='dark'] .home-session-progress i {
+  background: #84d7ab;
+}
+html[data-theme='dark'] .home-habit-icon.water {
+  background: #243a41;
+  color: #9ac9de;
+}
+html[data-theme='dark'] .home-habit-icon.steps {
+  background: #302c41;
+  color: #c9b5e5;
+}
+html[data-theme='dark'] .home-habit-icon.food {
+  background: #3c3325;
+  color: #e1c086;
+}
+html[data-theme='dark'] .home-habit-icon.cardio {
+  background: #3e2d2b;
+  color: #e5b2a7;
+}
+html[data-theme='dark'] .home-habit-check {
+  border-color: #53695d;
+}
+html[data-theme='dark'] .home-habit-check.is-checked {
+  background: var(--color-mint);
+  border-color: var(--color-mint);
+  color: var(--color-inverse);
+}
+html[data-theme='dark'] .home-consistency {
+  background: #302c21;
+  border-color: #48402e;
+}
+html[data-theme='dark']
+  :is(.home-consistency > p, .home-consistency > small, .home-consistency > button, .home-next-meal small) {
+  color: #dbc89e;
+}
+html[data-theme='dark'] .home-consistency > p strong {
+  color: #f0dfb5;
+}
+html[data-theme='dark'] .home-week-goal > span {
+  border-color: #8e7c54;
+  color: #bca77d;
+}
+html[data-theme='dark'] .home-week-goal > span.is-done {
+  border-color: #b2cb85;
+  background: #b2cb85;
+  color: #243619;
+}
+html[data-theme='dark'] .home-next-meal strong {
+  color: #dfded2;
+}
+html[data-theme='dark'] .home-create-routine {
+  border-color: #486452;
+  color: #acd3b6;
+}
+html[data-theme='dark'] .home-resume {
+  background: #19382b;
+  border-color: #3a654c;
+  color: #b4dcc2;
+}
+html[data-theme='dark'] .home-resume strong {
+  color: #a9edc2;
+}
+
+/* Gym session: sharp values, legible previous sets, distinct completion. */
+html[data-theme='dark']
+  :is(
+    .af-week-strip,
+    .af-icon-button,
+    .af-search,
+    .af-routine-card,
+    .af-session-hero,
+    .af-exercise,
+    .af-finish-dialog
+  ) {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+html[data-theme='dark'] :is(.af-icon-button, .af-kicker, .af-title-dot, .af-session-label) {
+  color: var(--color-mint);
+}
+html[data-theme='dark']
+  :is(
+    .af-workout-page-header div > p:last-child,
+    .af-section-description,
+    .af-section-heading > span,
+    .af-routine-meta,
+    .af-routine-days,
+    .af-session-focus,
+    .af-session-metrics > span,
+    .af-session-progress-label,
+    .af-session-time,
+    .af-exercise-title > span,
+    .af-exercise-count,
+    .af-set-labels,
+    .af-set-previous,
+    .af-set-number,
+    .af-set-number small,
+    .af-detail-body,
+    .af-chevron,
+    .af-dialog-close,
+    .af-finish-dialog h2 + p,
+    .af-finish-save-note,
+    .af-routine-top
+  ) {
+  color: var(--color-muted);
+}
+html[data-theme='dark']
+  :is(.af-session-hero h2, .af-exercise-title strong, .af-empty-state strong, .af-finish-stats strong) {
+  color: #e4f2e6;
+}
+html[data-theme='dark']
+  :is(.af-session-metrics strong, .af-session-progress-label strong, .af-previous-session strong) {
+  color: #a8e0bd;
+}
+html[data-theme='dark'] .af-week-day {
+  color: #d2e0d5;
+}
+html[data-theme='dark'] .af-week-day > span:first-child {
+  color: #a5b9ab;
+}
+html[data-theme='dark'] .af-week-day.is-today {
+  box-shadow: inset 0 0 0 1px #6f9c7d;
+}
+html[data-theme='dark'] .af-week-day.is-selected {
+  background: #294c38;
+  color: #b6ebc6;
+}
+html[data-theme='dark'] .af-week-day.is-selected > span:first-child {
+  color: #a4d8b2;
+}
+html[data-theme='dark'] .af-search input {
+  color: var(--color-text);
+}
+html[data-theme='dark'] .af-search input::placeholder {
+  color: #9cb2a3;
+}
+html[data-theme='dark'] .af-search:focus-within {
+  border-color: var(--color-mint);
+}
+html[data-theme='dark'] .af-routine-card.is-selected {
+  box-shadow: 0 0 0 1px #76c194;
+  border-color: #76c194;
+}
+html[data-theme='dark'] :is(.af-routine-icon, .af-exercise-icon, .af-finish-icon, .af-session-label.is-completed) {
+  background: #253f2e;
+  color: #a3d9b2;
+}
+html[data-theme='dark'] .af-routine-tone-1 .af-routine-icon {
+  background: #302c3f;
+  color: #ccb6ec;
+}
+html[data-theme='dark'] .af-routine-tone-2 .af-routine-icon {
+  background: #3e3424;
+  color: #edce91;
+}
+html[data-theme='dark'] .af-routine-tone-3 .af-routine-icon {
+  background: #253b44;
+  color: #a2d0e3;
+}
+html[data-theme='dark'] .af-routine-state {
+  background: #253f2e;
+  color: #b1e7bc;
+}
+html[data-theme='dark'] :is(.af-routine-days, .af-set-row, .af-exercise-details) {
+  border-color: var(--color-border);
+}
+html[data-theme='dark'] .af-recovery-note {
+  background: #2d3023;
+  border-color: #454e31;
+  color: #c4cfaa;
+}
+html[data-theme='dark'] :is(.af-recovery-note strong, .af-resume-banner strong) {
+  color: #d2e4be;
+}
+html[data-theme='dark'] .af-recovery-note button {
+  border-color: #67764d;
+}
+html[data-theme='dark'] .af-recovery-note button.is-done {
+  background: #3c502c;
+  color: #d1e8b5;
+}
+html[data-theme='dark'] .af-resume-banner {
+  background: #1b3a2b;
+  border-color: #38634a;
+  color: #b7dfc1;
+}
+html[data-theme='dark'] .af-session-progress {
+  background: #31483a;
+}
+html[data-theme='dark'] .af-session-progress > div {
+  background: var(--color-mint);
+}
+html[data-theme='dark'] .af-session-result {
+  background: #1f3d2a;
+  color: #b0d9b6;
+}
+html[data-theme='dark'] .af-session-result strong {
+  color: #c2f1c7;
+}
+html[data-theme='dark'] .af-session-result.is-partial {
+  background: #37301f;
+  color: #e9d096;
+}
+html[data-theme='dark'] .af-exercise.is-complete {
+  border-color: #598a64;
+}
+html[data-theme='dark'] .af-exercise.is-complete .af-exercise-icon {
+  background: #2d5035;
+  color: #b0e6b5;
+}
+html[data-theme='dark'] :is(.af-exercise-tags > span, .af-previous-session, .af-add-set) {
+  background: #203027;
+  color: #bed4c4;
+}
+html[data-theme='dark'] .af-set-row.is-complete {
+  background: #1e3326;
+}
+html[data-theme='dark'] .af-set-input[readonly] {
+  background: #1a2920;
+  border-color: transparent;
+}
+html[data-theme='dark'] .af-set-check {
+  background: #24332a;
+  border-color: #506556;
+  color: #a9bbab;
+}
+html[data-theme='dark'] .af-set-check.is-complete {
+  background: var(--color-mint);
+  border-color: var(--color-mint);
+  color: var(--color-inverse);
+}
+html[data-theme='dark'] .af-exercise-details > summary {
+  color: #b8d2bf;
+}
+html[data-theme='dark'] .af-empty-state {
+  color: var(--color-muted);
+}
+html[data-theme='dark'] .af-finish-footer {
+  background: #1e3928;
+  border-color: #3b5d43;
+  color: #b5d1bb;
+}
+html[data-theme='dark'] .af-finish-footer strong {
+  color: #c4e6c9;
+}
+html[data-theme='dark'] .af-finish-dialog::backdrop {
+  background: #020908b8;
+}
+html[data-theme='dark'] .af-finish-dialog {
+  box-shadow: 0 30px 100px #0008;
+}
+html[data-theme='dark'] .af-finish-stats > span {
+  background: #213126;
+  color: #b9cdbd;
+}
+html[data-theme='dark'] .af-finish-stats small {
+  color: #a6c2a8;
+}
+html[data-theme='dark'] .af-finish-warning {
+  background: #39301f;
+  color: #e9ce91;
+}
+html[data-theme='dark'] .af-finish-celebrate {
+  background: #243d28;
+  color: #bbdfb8;
+}
+html[data-theme='dark'] .af-set-error {
+  background: #3c2823;
+  color: #ffc0af;
+}
+
+/* Cardio, exercise search, and training history use the same palette. */
+html[data-theme='dark'] :is(.cardio-journal, .exercise-library, .training-stat, .training-panel) {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+html[data-theme='dark']
+  :is(
+    .cardio-history-row,
+    .exercise-library-results > button,
+    .progress-view-tabs,
+    .training-history-details,
+    .training-exercise-history > div,
+    .training-session,
+    .training-session-exercise
+  ) {
+  border-color: var(--color-border);
+}
+html[data-theme='dark']
+  :is(
+    .cardio-form label,
+    .cardio-history-row p,
+    .exercise-library > summary small,
+    .exercise-library-body > p:first-child,
+    .exercise-library-results small,
+    .exercise-library-results > p,
+    .progress-view-tabs button
+  ) {
+  color: var(--color-muted);
+}
+html[data-theme='dark'] :is(.exercise-library > summary, .exercise-library-results > button) {
+  color: #acd5b6;
+}
+html[data-theme='dark'] .exercise-library-results strong {
+  color: #d8eadd;
+}
+html[data-theme='dark'] .exercise-library-search {
+  background: #101a19;
+  border-color: #3a4d47;
+  color: #aac2b4;
+}
+html[data-theme='dark'] .exercise-library-search input {
+  color: var(--color-text);
+}
+html[data-theme='dark'] .progress-view-tabs button[aria-pressed='true'] {
+  background: #294332;
+  color: #ace7bb;
+}
+html[data-theme='dark']
+  :is(
+    .training-period-panel > span,
+    .training-period-tabs button,
+    .training-stat p,
+    .training-stat > strong small,
+    .training-stat > span:last-child,
+    .training-chart-caption,
+    .training-empty p,
+    .training-history-empty,
+    .training-data-note,
+    .training-session-title small,
+    .training-session-volume small,
+    .training-session-body > p,
+    .training-session-exercise small,
+    .training-select-label,
+    .training-exercise-metrics > div > span,
+    .training-chart-labels,
+    .training-exercise-history small,
+    .training-frequency-column,
+    .training-frequency-column > small,
+    .training-detail-chevron,
+    .training-history-details summary > span,
+    .training-cardio-numbers > span
+  ) {
+  color: var(--color-muted);
+}
+html[data-theme='dark']
+  :is(
+    .training-stat > strong,
+    .training-panel-heading h2,
+    .training-empty h3,
+    .training-session-title strong,
+    .training-session-exercise strong
+  ) {
+  color: #dfeddf;
+}
+html[data-theme='dark']
+  :is(
+    .training-eyebrow,
+    .training-teal,
+    .training-exercise-metrics strong,
+    .training-load-change,
+    .training-session-volume,
+    .training-session-exercise,
+    .training-exercise-history > div,
+    .training-cardio-numbers strong,
+    .training-history-details summary
+  ) {
+  color: #abd5ac;
+}
+html[data-theme='dark'] .training-period-tabs {
+  background: #202e26;
+}
+html[data-theme='dark'] .training-period-tabs button.is-selected {
+  background: #365a3e;
+  color: #c8edca;
+}
+html[data-theme='dark'] .training-stat--featured {
+  background: #1c3527;
+  border-color: #36583d;
+}
+html[data-theme='dark']
+  :is(.training-stat-icon, .training-panel-icon, .training-empty-icon, .training-count, .training-session-icon) {
+  background: #293e29;
+  color: #b7d0a1;
+}
+html[data-theme='dark'] .training-stat-icon--gold {
+  background: #3a3021;
+  color: #e9ca8c;
+}
+html[data-theme='dark'] .training-frequency-track {
+  background: #26372a;
+}
+html[data-theme='dark'] .training-frequency-track i {
+  background: #3b4e38;
+}
+html[data-theme='dark'] .training-frequency-track i.has-workout {
+  background: #87c896;
+}
+html[data-theme='dark'] :is(.training-comparison, .training-chart-empty, .training-session-body > p) {
+  background: #233427;
+  color: #b9cfac;
+}
+html[data-theme='dark'] .training-chart-empty p {
+  color: #cee6bc;
+}
+html[data-theme='dark'] .training-chart-grid {
+  stroke: #344734;
+}
+html[data-theme='dark'] .training-record-list > span {
+  background: #373222;
+  color: #dfce94;
+}
+html[data-theme='dark'] :is(svg [stroke='#e2e8f0'], svg [stroke='#ecf2e7']) {
+  stroke: #3b4d44;
+}
+html[data-theme='dark'] svg text {
+  fill: var(--color-muted);
+}
+
+/* Authentication and portals need the html scope because they sit outside App. */
+html[data-theme='dark'] .auth-page {
+  background: var(--color-canvas);
+}
+html[data-theme='dark'] .auth-panel {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow: 0 20px 70px #0002;
+}
+html[data-theme='dark'] .auth-panel::before {
+  background: #487b62;
+}
+html[data-theme='dark'] .auth-brand-mark {
+  background: #223c2e;
+  border-color: #3f6249;
+}
+html[data-theme='dark'] :is(.auth-brand strong, .auth-panel-title, .auth-hero-copy h2, .auth-benefits strong) {
+  color: var(--color-text);
+}
+html[data-theme='dark']
+  :is(.auth-brand small, .auth-hero-copy p, .auth-panel-description, .auth-secure-note, .auth-benefits small) {
+  color: var(--color-muted);
+}
+html[data-theme='dark']
+  :is(
+    .auth-hero-copy h2 span,
+    .auth-hero-kicker,
+    .auth-panel-kicker,
+    .auth-link-button,
+    .auth-benefits svg,
+    .auth-secure-note svg
+  ) {
+  color: var(--color-mint);
+}
+html[data-theme='dark'] :is(.auth-hero-kicker, .auth-benefits > span) {
+  background: #1f3528;
+  border-color: #34543d;
+}
+html[data-theme='dark'] .auth-field {
+  color: #c6d9cd;
+}
+html[data-theme='dark'] .auth-input-icon {
+  color: #94ad9d;
+}
+html[data-theme='dark'] .auth-message {
+  background: #332f22;
+  color: #e2d1a8;
+  border-color: #4d4531;
+}
+html[data-theme='dark'] :is(.rank-levelup-card, [aria-labelledby='app-tour-title']) {
+  background: var(--color-surface);
+  border-color: #3d614d;
+  color: var(--color-text);
+}
+html[data-theme='dark'] .rank-levelup-title {
+  color: var(--color-text);
+}
+html[data-theme='dark'] .rank-levelup-description {
+  color: var(--color-muted);
+}
+html[data-theme='dark'] [aria-labelledby='app-tour-title'] [class*='bg-slate-9'] {
+  background-color: #223328;
+}
+html[data-theme='dark'] aside[role='timer'] {
+  background: #152921;
+  border-color: #588f70;
+  box-shadow: 0 12px 42px #0006;
+}
+html[data-theme='dark'] aside[role='timer'] .font-mono {
+  color: #b7efd0;
+}
+html[data-theme='dark'] [role='alert'][class*='bg-lime-300'] {
+  background: var(--color-mint);
+  color: var(--color-inverse);
+}
+html[data-theme='dark'] [role='alert'][class*='bg-lime-300'] :is(.text-slate-800, .text-slate-950) {
+  color: #254e3c;
+}
+
+/* The preference control deliberately works in either appearance. */
+.theme-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 20px;
+}
+.theme-choice {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 76px;
+  padding: 14px;
+  text-align: left;
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+.theme-choice > svg {
+  flex-shrink: 0;
+}
+.theme-choice strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+.theme-choice small {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.theme-choice[aria-pressed='true'] {
+  border-color: var(--color-mint);
+  color: var(--color-mint);
+  box-shadow: inset 0 0 0 1px var(--color-mint);
+}
+html[data-theme='dark'] .theme-choice[aria-pressed='true'] {
+  background: #203a2c;
+}
+html[data-theme='light'] .theme-choice[aria-pressed='true'] {
+  background: #eef8f0;
+}
+@media (max-width: 420px) {
+  .theme-choice {
+    gap: 8px;
+    padding: 12px 10px;
+  }
+  .theme-choice small {
+    font-size: 10px;
+  }
+}

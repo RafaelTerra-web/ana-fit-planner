@@ -172,7 +172,10 @@ function normalizeAppData(value: unknown): AppData {
     profile: {
       ...fallback.profile,
       ...profile,
-      theme: 'light',
+      // Earlier releases wrote light unconditionally. Only a new explicit
+      // preference represents the user's appearance choice.
+      theme: profile.uiTheme === 'light' ? 'light' : 'dark',
+      uiTheme: profile.uiTheme === 'light' ? 'light' : 'dark',
     },
     goals: {
       ...fallback.goals,
@@ -263,6 +266,20 @@ function App() {
   const todayChecks = normalizeDailyChecks(data.dailyChecks[dateKey], data.meals);
 
   useEffect(() => {
+    const theme = data.profile.uiTheme ?? 'dark';
+    document.documentElement.dataset.theme = theme;
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', theme === 'dark' ? '#0d1515' : '#f5f7f6');
+    try {
+      // The login screen and first paint can use this choice before App mounts.
+      window.localStorage.setItem('ana-fit-planner:ui-theme:v1', theme);
+    } catch {
+      // Appearance still works when localStorage is unavailable.
+    }
+  }, [data.profile.uiTheme]);
+
+  useEffect(() => {
     if (!notifications.enabled || notifications.permission !== 'granted') return;
 
     const timer = window.setTimeout(() => {
@@ -284,6 +301,8 @@ function App() {
       JSON.stringify(storedWeekPlan) !== JSON.stringify(data.weekPlan) ||
       storedProfile?.trainingDays !== data.profile.trainingDays ||
       storedProfile?.cardioDays !== data.profile.cardioDays ||
+      storedProfile?.uiTheme !== data.profile.uiTheme ||
+      storedProfile?.theme !== data.profile.theme ||
       JSON.stringify(storedNutritionPlan) !== JSON.stringify(data.assignedNutritionPlan)
     ) {
       setStoredData(data);
@@ -625,6 +644,10 @@ function App() {
 
   const updateProfile = (profile: Partial<Profile>) => {
     updateData((current) => {
+      const uiTheme = profile.uiTheme ?? current.profile.uiTheme ?? 'dark';
+      if (Object.keys(profile).every((key) => key === 'uiTheme' || key === 'theme')) {
+        return { ...current, profile: { ...current.profile, theme: uiTheme, uiTheme } };
+      }
       const hasAssignedPlan = hasAssignedNutritionPlan(current.assignedNutritionPlan);
       const nextProfile = {
         ...current.profile,
@@ -635,7 +658,8 @@ function App() {
               avoidedFoods: current.profile.avoidedFoods,
             }
           : {}),
-        theme: 'light' as const,
+        theme: uiTheme,
+        uiTheme,
       };
       const nextGoals = calculateDynamicGoals(nextProfile);
 
@@ -662,7 +686,8 @@ function App() {
           }
         : {}),
       onboardingCompleted: true,
-      theme: 'light',
+      theme: data.profile.uiTheme ?? 'dark',
+      uiTheme: data.profile.uiTheme ?? 'dark',
     };
     const nextGoals = calculateDynamicGoals(nextProfile);
     const completedData = normalizeAppData({
@@ -847,7 +872,7 @@ function App() {
 
   return (
     <>
-      <main className="app-page" data-theme="light" id="main-content">
+      <main className="app-page" data-theme={data.profile.uiTheme ?? 'dark'} id="main-content">
         <AppHeader
           activeTab={activeTab}
           profileName={data.profile.name}

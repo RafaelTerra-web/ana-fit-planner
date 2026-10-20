@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   formatSessionDuration,
+  adjustSetValue,
+  fillEmptySetsFromHistory,
   getRepeatSetReference,
   getSessionElapsedSeconds,
   getSessionVolume,
@@ -70,4 +72,27 @@ test('volume uses completed, numeric rows including extras and accepts decimal c
 
 test('search finds accented exercise and muscle names', () => {
   assert.equal(normalizeWorkoutSearch('  Glúteos e Bíceps  '), 'gluteos e biceps');
+});
+
+test('quick adjustments support comma decimals, floor at zero and whole repetitions', () => {
+  assert.equal(adjustSetValue('42,5', 2.5, 'weight'), '45');
+  assert.equal(adjustSetValue('0,5', -2.5, 'weight'), '0');
+  assert.equal(adjustSetValue('', 1, 'reps'), '1');
+  assert.equal(adjustSetValue('10', -1, 'reps'), '9');
+  assert.equal(adjustSetValue('bad', 0.5, 'weight'), '0,5');
+});
+
+test('repeat ignores invalid drafts and fills history only into untouched rows', () => {
+  const current = log([set('20', '8', true), set('100', '', false), set()]);
+  const previous = log([set('50', '10', true), set('45', '9', true), set('60', '1', false)]);
+  assert.equal(getRepeatSetReference(current, 2, previous), current.sets[0]);
+  const initial = log([set(), set('25', '', false), set('30', '6', true)]);
+  const filled = fillEmptySetsFromHistory(initial, previous);
+  assert.equal(filled.sets[0].weight, '50');
+  assert.equal(filled.sets[0].completed, false);
+  assert.equal(filled.sets[1].weight, '25');
+  assert.equal(filled.sets[1].reps, '');
+  assert.equal(filled.sets[2], initial.sets[2]);
+  assert.equal(fillEmptySetsFromHistory(initial), initial);
+  assert.equal(initial.sets[0].weight, '', 'input remains immutable');
 });

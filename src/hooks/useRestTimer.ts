@@ -3,6 +3,7 @@ import { createContext, useContext } from 'react';
 export type RestTimer = {
   alarmId: string;
   exerciseId: string;
+  setId?: string;
   exerciseName: string;
   endsAt: number;
   durationSeconds: number;
@@ -11,7 +12,8 @@ export type RestTimer = {
 export type RestTimerContextValue = {
   timer: RestTimer | null;
   remainingSeconds: number;
-  startRest: (details: { exerciseId: string; exerciseName: string; durationSeconds: number }) => void;
+  startRest: (details: { exerciseId: string; setId?: string; exerciseName: string; durationSeconds: number }) => void;
+  adjustRest: (deltaSeconds: number) => void;
   skipRest: () => void;
 };
 

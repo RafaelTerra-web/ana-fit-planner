@@ -36,6 +36,7 @@ try {
     timer: null,
     remainingSeconds: 0,
     startRest: () => {},
+    adjustRest: () => {},
     skipRest: () => {},
   };
   const render = (tab) => {

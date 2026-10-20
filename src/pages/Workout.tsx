@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  ChevronLeft,
   Dumbbell,
   HeartPulse,
   Moon,
@@ -12,6 +13,7 @@ import {
   Play,
   Search,
   Sparkles,
+  Sun,
   Timer,
   X,
 } from 'lucide-react';
@@ -19,6 +21,8 @@ import { useEffect, useRef, useState } from 'react';
 import { CardioJournal } from '../components/CardioJournal';
 import { ExerciseCard } from '../components/ExerciseCard';
 import { getWorkoutById } from '../data/workoutPlan';
+import { useRestTimer } from '../hooks/useRestTimer';
+import { useScreenAwake } from '../hooks/useScreenAwake';
 import type { AppData, CardioEntry, DailyChecks, Exercise, ExerciseLog, WeekPlanItem } from '../types';
 import {
   estimateWorkoutMinutes,
@@ -35,6 +39,7 @@ import {
   getWorkoutSessionProgress,
 } from '../utils/workoutSessions';
 import '../workout-refresh.css';
+import '../gym-workout.css';
 
 type WorkoutProps = {
   data: AppData;
@@ -96,6 +101,12 @@ export function Workout({
   const [routineSearch, setRoutineSearch] = useState('');
   const [exerciseSearch, setExerciseSearch] = useState('');
   const [showFinishReview, setShowFinishReview] = useState(false);
+  const [showRoutines, setShowRoutines] = useState(false);
+  const [expandedExerciseId, setExpandedExerciseId] = useState<string | null | undefined>();
+  const [keepScreenAwake, setKeepScreenAwake] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const finishingRef = useRef(false);
+  const { timer, skipRest } = useRestTimer();
   const [now, setNow] = useState(Date.now());
   const finishDialogRef = useRef<HTMLDialogElement>(null);
   const finishTriggerRef = useRef<HTMLButtonElement>(null);
@@ -106,6 +117,8 @@ export function Workout({
   const matchingActiveSession =
     activeSession?.workoutId === selectedWorkout.id && !activeSession.completedAt ? activeSession : undefined;
   const session = matchingViewedSession ?? matchingActiveSession ?? data.workoutSessions[currentDateSessionId];
+  const isFocusMode = Boolean(session && !session.completedAt && !showRoutines);
+  const screenAwake = useScreenAwake(keepScreenAwake && isFocusMode);
   const displaySession =
     session ??
     createWorkoutSession(selectedWorkout, {
@@ -134,6 +147,17 @@ export function Workout({
       })
     : selectedWorkout.exercises;
   const sessionProgress = getWorkoutSessionProgress(displaySession);
+  const nextPendingExercise = sessionExercises.find((exercise) =>
+    displaySession.exerciseLogs[exercise.id]?.sets.some((set) => !set.completed),
+  );
+  const expandedExercise = sessionExercises.find((exercise) => exercise.id === expandedExerciseId);
+  const currentPendingExercise =
+    expandedExercise && displaySession.exerciseLogs[expandedExercise.id]?.sets.some((set) => !set.completed)
+      ? expandedExercise
+      : nextPendingExercise;
+  const nextPendingSetIndex = currentPendingExercise
+    ? displaySession.exerciseLogs[currentPendingExercise.id].sets.findIndex((set) => !set.completed)
+    : -1;
   const firstIncompleteExerciseIndex = sessionExercises.findIndex((exercise) =>
     displaySession.exerciseLogs[exercise.id]?.sets
       .slice(0, displaySession.exerciseLogs[exercise.id].plannedSetCount)
@@ -176,9 +200,17 @@ export function Workout({
       return;
     setSelectedWorkoutId(activeSession.workoutId);
     setViewedSessionId(activeSession.id);
+    setShowRoutines(false);
+    if (activeSession.workoutId !== selectedWorkoutId) setExpandedExerciseId(undefined);
+    setExerciseSearch('');
     // Only a newly active session should change the selected routine.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSession?.id, activeWorkoutExists, initialWorkoutId]);
+
+  useEffect(() => {
+    finishingRef.current = false;
+    setFinishing(false);
+  }, [session?.id, session?.completedAt]);
 
   useEffect(() => {
     if (!session?.id || session.completedAt) return;
@@ -195,10 +227,19 @@ export function Workout({
     setSelectedWorkoutId(workoutId);
     setViewedSessionId(undefined);
     setExerciseSearch('');
-    if (shouldScroll)
+    setShowRoutines(false);
+    setExpandedExerciseId(undefined);
+    if (shouldScroll) {
+      const dateSession = data.workoutSessions[getWorkoutSessionId(workoutId, dateKey)];
+      const isRunning =
+        (activeSession?.workoutId === workoutId && !activeSession.completedAt) ||
+        (dateSession && !dateSession.completedAt);
       window.requestAnimationFrame(() =>
-        document.getElementById('workout-session')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+        document
+          .getElementById(isRunning ? 'exercise-list' : 'workout-session')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
       );
+    }
   };
 
   const scrollToExercises = () =>
@@ -210,15 +251,39 @@ export function Workout({
     finishTriggerRef.current?.focus();
   };
 
+  const jumpToExercise = (exerciseId: string, setIndex?: number) => {
+    setShowRoutines(false);
+    setExerciseSearch('');
+    setExpandedExerciseId(exerciseId);
+    const set = setIndex === undefined ? undefined : displaySession.exerciseLogs[exerciseId]?.sets[setIndex];
+    const targetId = set ? `workout-set-${exerciseId}-${set.id}` : `workout-exercise-${exerciseId}`;
+    window.requestAnimationFrame(() =>
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    );
+  };
+
+  const goToNextExercise = (exerciseId: string) => {
+    const position = sessionExercises.findIndex((exercise) => exercise.id === exerciseId);
+    const ordered = [...sessionExercises.slice(position + 1), ...sessionExercises.slice(0, position)];
+    const next = ordered.find((exercise) =>
+      displaySession.exerciseLogs[exercise.id]?.sets.some((set) => !set.completed),
+    );
+    if (next) jumpToExercise(next.id);
+    else setShowFinishReview(true);
+  };
+
   return (
-    <div className="af-workout-page">
+    <div className={`af-workout-page ${isFocusMode ? 'is-gym-focus' : ''} ${timer ? 'has-running-rest' : ''}`}>
       <header className="af-workout-page-header">
         <div>
-          <p className="af-kicker">Seu espaço de evolução</p>
+          <p className="af-kicker">{isFocusMode ? 'Modo academia' : 'Seu espaço de evolução'}</p>
           <h1>
-            Meus treinos<span className="af-title-dot">.</span>
+            {isFocusMode ? 'Hora de treinar' : 'Meus treinos'}
+            <span className="af-title-dot">.</span>
           </h1>
-          <p>Um plano seu. Uma série de cada vez.</p>
+          <p>
+            {isFocusMode ? 'Sua sessão aberta, com o que importa ao alcance.' : 'Um plano seu. Uma série de cada vez.'}
+          </p>
         </div>
         {onManagePlan ? (
           <button
@@ -232,179 +297,276 @@ export function Workout({
         ) : null}
       </header>
 
-      <div className="af-week-strip" aria-label="Sua programação semanal">
-        {orderedDays.map((item) => {
-          const date = new Date(monday);
-          date.setDate(monday.getDate() + ((item.dayIndex + 6) % 7));
-          const isToday = item.dayIndex === todayDate.getDay();
-          const isSelected = item.activityType === 'workout' && item.workoutId === selectedWorkout.id;
-          const content = (
-            <>
-              <span>{dayAbbreviations[item.dayIndex]}</span>
-              <strong>{date.getDate()}</strong>
-              <span className={`af-day-marker ${item.activityType}`}>
-                <span className="sr-only">
-                  {item.activityType === 'workout' ? 'Treino' : item.activityType === 'cardio' ? 'Cardio' : 'Descanso'}
-                </span>
-              </span>
-            </>
-          );
-          return item.workoutId && item.activityType === 'workout' ? (
-            <button
-              className={`af-week-day ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}`}
-              key={item.dayIndex}
-              onClick={() => selectWorkout(item.workoutId!, true)}
-              type="button"
-              aria-pressed={isSelected}
-              aria-current={isToday ? 'date' : undefined}
-              aria-label={`${item.dayLabel}, ${date.getDate()}: ${item.title}`}
-            >
-              {content}
+      {isFocusMode && (
+        <div className="gym-session-dock" aria-label="Controles do treino em andamento" data-tour="workout-session">
+          <div className="gym-dock-actions">
+            <button type="button" onClick={() => setShowRoutines(true)}>
+              <ChevronLeft size={16} /> Ver rotinas
             </button>
-          ) : (
-            <div
-              className={`af-week-day ${isToday ? 'is-today' : ''}`}
-              key={item.dayIndex}
-              aria-current={isToday ? 'date' : undefined}
-              title={`${item.dayLabel}: ${item.title}`}
+            <button type="button" aria-pressed={keepScreenAwake} onClick={() => setKeepScreenAwake(!keepScreenAwake)}>
+              <Sun size={16} />
+              {keepScreenAwake ? (screenAwake === 'on' ? 'Tela acesa' : 'Tela acesa solicitada') : 'Manter tela acesa'}
+            </button>
+          </div>
+          <div className="gym-dock-session-name">
+            <h1>{session?.workoutTitle}</h1>
+            <button
+              type="button"
+              disabled={sessionProgress.completedSetCount === 0}
+              ref={finishTriggerRef}
+              onClick={() => setShowFinishReview(true)}
             >
-              {content}
+              <CheckCircle2 size={16} aria-hidden="true" /> Finalizar
+            </button>
+          </div>
+          <div className="gym-dock-progress">
+            <span>
+              {sessionProgress.completedSetCount}
+              <small>/{sessionProgress.plannedSetCount} séries</small>
+            </span>
+            <div
+              role="progressbar"
+              aria-label="Séries planejadas concluídas"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={sessionProgress.percentage}
+            >
+              <i style={{ width: `${sessionProgress.percentage}%` }} />
             </div>
-          );
-        })}
-      </div>
+            <b>{elapsed}</b>
+          </div>
+          <div className="gym-dock-navigation">
+            <label>
+              <span>Ir para exercício</span>
+              <select
+                aria-label="Ir para exercício da sessão"
+                value={expandedExercise?.id ?? currentPendingExercise?.id ?? sessionExercises[0]?.id ?? ''}
+                onChange={(event) => jumpToExercise(event.target.value)}
+              >
+                {sessionExercises.map((exercise, index) => (
+                  <option key={exercise.id} value={exercise.id}>
+                    {index + 1}. {exercise.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="gym-jump-next"
+              onClick={() =>
+                currentPendingExercise
+                  ? jumpToExercise(currentPendingExercise.id, nextPendingSetIndex)
+                  : setShowFinishReview(true)
+              }
+            >
+              {currentPendingExercise ? `Ir à série ${nextPendingSetIndex + 1}` : 'Ver resumo'}
+              <ArrowRight size={17} />
+            </button>
+          </div>
+          {keepScreenAwake && (screenAwake === 'unavailable' || screenAwake === 'released') && (
+            <p className="gym-awake-hint" role="status">
+              O aparelho liberou a tela ou não permite mantê-la acesa agora.
+            </p>
+          )}
+        </div>
+      )}
 
-      {activeWorkoutExists && activeSession && activeSession.workoutId !== selectedWorkout.id ? (
+      {!isFocusMode && session && !session.completedAt && (
         <button
-          className="af-resume-banner"
           type="button"
+          className="af-resume-banner"
           onClick={() => {
-            selectWorkout(activeSession.workoutId);
-            setViewedSessionId(activeSession.id);
+            setShowRoutines(false);
+            scrollToExercises();
           }}
         >
           <span className="af-live-dot" />
           <span>
-            Você tem um treino em andamento
-            <strong>{activeSession.workoutTitle}</strong>
+            Treino continua aberto<strong>Voltar ao modo academia</strong>
           </span>
-          <ArrowRight size={19} aria-hidden="true" />
+          <ArrowRight size={18} />
         </button>
-      ) : null}
+      )}
 
-      <section className="af-routines-section" aria-labelledby="routine-library-title">
-        <div className="af-section-heading">
-          <h2 id="routine-library-title">Sua rotina</h2>
-          {onManagePlan ? (
-            <button className="af-text-button" type="button" onClick={onManagePlan}>
-              Organizar <ChevronRight size={15} aria-hidden="true" />
-            </button>
-          ) : (
-            <span>{data.workouts.length} treinos</span>
-          )}
-        </div>
-        <label className="af-search">
-          <Search size={18} aria-hidden="true" />
-          <input
-            aria-label="Buscar treino, exercício ou músculo"
-            placeholder="Buscar treino, exercício ou músculo"
-            value={routineSearch}
-            onChange={(event) => setRoutineSearch(event.target.value)}
-          />
-          {routineSearch ? (
-            <button type="button" onClick={() => setRoutineSearch('')} aria-label="Limpar busca de treinos">
-              <X size={16} aria-hidden="true" />
-            </button>
-          ) : null}
-        </label>
-        <div className="af-routine-grid">
-          {filteredWorkouts.map((workout) => {
-            const index = data.workouts.findIndex((item) => item.id === workout.id);
-            const assignedDays = orderedDays
-              .filter((item) => item.workoutId === workout.id)
-              .map((item) => dayAbbreviations[item.dayIndex]);
-            const isSelected = selectedWorkout.id === workout.id;
-            const isActive = activeWorkoutExists && activeSession?.workoutId === workout.id;
-            const isDone = Boolean(data.workoutSessions[getWorkoutSessionId(workout.id, dateKey)]?.completedAt);
-            return (
-              <button
-                className={`af-routine-card af-routine-tone-${index % 4} ${isSelected ? 'is-selected' : ''}`}
-                key={workout.id}
-                type="button"
-                onClick={() => selectWorkout(workout.id, true)}
-                aria-pressed={isSelected}
-                aria-label={`Ver treino ${workout.title}`}
-              >
-                <span className="af-routine-top">
-                  <span className="af-routine-icon">
-                    <Dumbbell size={23} aria-hidden="true" />
+      <div className="gym-planning" hidden={isFocusMode}>
+        <div className="af-week-strip" aria-label="Sua programação semanal">
+          {orderedDays.map((item) => {
+            const date = new Date(monday);
+            date.setDate(monday.getDate() + ((item.dayIndex + 6) % 7));
+            const isToday = item.dayIndex === todayDate.getDay();
+            const isSelected = item.activityType === 'workout' && item.workoutId === selectedWorkout.id;
+            const content = (
+              <>
+                <span>{dayAbbreviations[item.dayIndex]}</span>
+                <strong>{date.getDate()}</strong>
+                <span className={`af-day-marker ${item.activityType}`}>
+                  <span className="sr-only">
+                    {item.activityType === 'workout'
+                      ? 'Treino'
+                      : item.activityType === 'cardio'
+                        ? 'Cardio'
+                        : 'Descanso'}
                   </span>
-                  {isActive ? (
-                    <span className="af-routine-state">Em andamento</span>
-                  ) : isDone ? (
-                    <CheckCircle2 size={18} aria-label="Concluído hoje" />
-                  ) : (
-                    <ChevronRight size={17} aria-hidden="true" />
-                  )}
                 </span>
-                <strong>{workout.title}</strong>
-                <span className="af-routine-meta">
-                  {workout.exercises.length} exercícios · ~{estimateWorkoutMinutes(workout)} min
-                </span>
-                <span className="af-routine-days">
-                  {assignedDays.length ? assignedDays.join(' · ') : 'Sem dia fixo'}
-                  {isSelected ? <Check size={14} aria-hidden="true" /> : null}
-                </span>
+              </>
+            );
+            return item.workoutId && item.activityType === 'workout' ? (
+              <button
+                className={`af-week-day ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}`}
+                key={item.dayIndex}
+                onClick={() => selectWorkout(item.workoutId!, true)}
+                type="button"
+                aria-pressed={isSelected}
+                aria-current={isToday ? 'date' : undefined}
+                aria-label={`${item.dayLabel}, ${date.getDate()}: ${item.title}`}
+              >
+                {content}
               </button>
+            ) : (
+              <div
+                className={`af-week-day ${isToday ? 'is-today' : ''}`}
+                key={item.dayIndex}
+                aria-current={isToday ? 'date' : undefined}
+                title={`${item.dayLabel}: ${item.title}`}
+              >
+                {content}
+              </div>
             );
           })}
         </div>
-        {!filteredWorkouts.length ? (
-          <div className="af-empty-state">
-            <Search size={25} aria-hidden="true" />
-            <strong>Nenhum treino encontrado</strong>
-            <p>Tente outro nome ou grupo muscular.</p>
-            <button className="af-text-button" type="button" onClick={() => setRoutineSearch('')}>
-              Ver todos os treinos
-            </button>
+
+        {activeWorkoutExists && activeSession && activeSession.workoutId !== selectedWorkout.id ? (
+          <button
+            className="af-resume-banner"
+            type="button"
+            onClick={() => {
+              selectWorkout(activeSession.workoutId);
+              setViewedSessionId(activeSession.id);
+            }}
+          >
+            <span className="af-live-dot" />
+            <span>
+              Você tem um treino em andamento
+              <strong>{activeSession.workoutTitle}</strong>
+            </span>
+            <ArrowRight size={19} aria-hidden="true" />
+          </button>
+        ) : null}
+
+        <section className="af-routines-section" aria-labelledby="routine-library-title">
+          <div className="af-section-heading">
+            <h2 id="routine-library-title">Sua rotina</h2>
+            {onManagePlan ? (
+              <button className="af-text-button" type="button" onClick={onManagePlan}>
+                Organizar <ChevronRight size={15} aria-hidden="true" />
+              </button>
+            ) : (
+              <span>{data.workouts.length} treinos</span>
+            )}
+          </div>
+          <label className="af-search">
+            <Search size={18} aria-hidden="true" />
+            <input
+              aria-label="Buscar treino, exercício ou músculo"
+              placeholder="Buscar treino, exercício ou músculo"
+              value={routineSearch}
+              onChange={(event) => setRoutineSearch(event.target.value)}
+            />
+            {routineSearch ? (
+              <button type="button" onClick={() => setRoutineSearch('')} aria-label="Limpar busca de treinos">
+                <X size={16} aria-hidden="true" />
+              </button>
+            ) : null}
+          </label>
+          <div className="af-routine-grid">
+            {filteredWorkouts.map((workout) => {
+              const index = data.workouts.findIndex((item) => item.id === workout.id);
+              const assignedDays = orderedDays
+                .filter((item) => item.workoutId === workout.id)
+                .map((item) => dayAbbreviations[item.dayIndex]);
+              const isSelected = selectedWorkout.id === workout.id;
+              const isActive = activeWorkoutExists && activeSession?.workoutId === workout.id;
+              const isDone = Boolean(data.workoutSessions[getWorkoutSessionId(workout.id, dateKey)]?.completedAt);
+              return (
+                <button
+                  className={`af-routine-card af-routine-tone-${index % 4} ${isSelected ? 'is-selected' : ''}`}
+                  key={workout.id}
+                  type="button"
+                  onClick={() => selectWorkout(workout.id, true)}
+                  aria-pressed={isSelected}
+                  aria-label={`Ver treino ${workout.title}`}
+                >
+                  <span className="af-routine-top">
+                    <span className="af-routine-icon">
+                      <Dumbbell size={23} aria-hidden="true" />
+                    </span>
+                    {isActive ? (
+                      <span className="af-routine-state">Em andamento</span>
+                    ) : isDone ? (
+                      <CheckCircle2 size={18} aria-label="Concluído hoje" />
+                    ) : (
+                      <ChevronRight size={17} aria-hidden="true" />
+                    )}
+                  </span>
+                  <strong>{workout.title}</strong>
+                  <span className="af-routine-meta">
+                    {workout.exercises.length} exercícios · ~{estimateWorkoutMinutes(workout)} min
+                  </span>
+                  <span className="af-routine-days">
+                    {assignedDays.length ? assignedDays.join(' · ') : 'Sem dia fixo'}
+                    {isSelected ? <Check size={14} aria-hidden="true" /> : null}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {!filteredWorkouts.length ? (
+            <div className="af-empty-state">
+              <Search size={25} aria-hidden="true" />
+              <strong>Nenhum treino encontrado</strong>
+              <p>Tente outro nome ou grupo muscular.</p>
+              <button className="af-text-button" type="button" onClick={() => setRoutineSearch('')}>
+                Ver todos os treinos
+              </button>
+            </div>
+          ) : null}
+        </section>
+
+        {todayPlan.activityType !== 'workout' ? (
+          <div className="af-recovery-note">
+            {todayPlan.activityType === 'cardio' ? (
+              <HeartPulse size={20} aria-hidden="true" />
+            ) : (
+              <Moon size={20} aria-hidden="true" />
+            )}
+            <div>
+              <strong>
+                {todayPlan.activityType === 'cardio' ? 'Hoje também tem cardio' : 'Hoje é dia de recuperar'}
+              </strong>
+              <p>{todayPlan.cardio || todayPlan.rest || 'Seu próximo treino fica pronto aqui quando você quiser.'}</p>
+            </div>
+            {todayPlan.activityType === 'cardio' ? (
+              <button
+                className={todayChecks.cardioDone ? 'is-done' : ''}
+                type="button"
+                onClick={() => onToggleCheck('cardioDone')}
+                aria-pressed={todayChecks.cardioDone}
+              >
+                {todayChecks.cardioDone ? (
+                  <Check size={17} aria-hidden="true" />
+                ) : (
+                  <HeartPulse size={17} aria-hidden="true" />
+                )}
+                {todayChecks.cardioDone ? 'Feito' : 'Marcar'}
+              </button>
+            ) : null}
           </div>
         ) : null}
-      </section>
-
-      {todayPlan.activityType !== 'workout' ? (
-        <div className="af-recovery-note">
-          {todayPlan.activityType === 'cardio' ? (
-            <HeartPulse size={20} aria-hidden="true" />
-          ) : (
-            <Moon size={20} aria-hidden="true" />
-          )}
-          <div>
-            <strong>
-              {todayPlan.activityType === 'cardio' ? 'Hoje também tem cardio' : 'Hoje é dia de recuperar'}
-            </strong>
-            <p>{todayPlan.cardio || todayPlan.rest || 'Seu próximo treino fica pronto aqui quando você quiser.'}</p>
-          </div>
-          {todayPlan.activityType === 'cardio' ? (
-            <button
-              className={todayChecks.cardioDone ? 'is-done' : ''}
-              type="button"
-              onClick={() => onToggleCheck('cardioDone')}
-              aria-pressed={todayChecks.cardioDone}
-            >
-              {todayChecks.cardioDone ? (
-                <Check size={17} aria-hidden="true" />
-              ) : (
-                <HeartPulse size={17} aria-hidden="true" />
-              )}
-              {todayChecks.cardioDone ? 'Feito' : 'Marcar'}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      </div>
 
       <section
         className="af-session-hero"
-        data-tour="workout-session"
+        data-tour={isFocusMode ? undefined : 'workout-session'}
         id="workout-session"
         aria-labelledby="selected-workout-title"
       >
@@ -485,6 +647,8 @@ export function Workout({
               className="af-primary-button"
               type="button"
               onClick={() => {
+                setShowRoutines(false);
+                setExerciseSearch('');
                 if (!session) onStartSession(selectedWorkout.id);
                 scrollToExercises();
               }}
@@ -498,7 +662,7 @@ export function Workout({
                 className="af-secondary-button"
                 disabled={sessionProgress.completedSetCount === 0}
                 onClick={() => setShowFinishReview(true)}
-                ref={finishTriggerRef}
+                ref={isFocusMode ? undefined : finishTriggerRef}
                 type="button"
               >
                 <CheckCircle2 size={17} aria-hidden="true" /> Finalizar
@@ -521,7 +685,7 @@ export function Workout({
         <p className="af-section-description">
           Digite carga e repetições. Use 0 kg para peso corporal. Toque em ✓ para iniciar o descanso.
         </p>
-        {sessionExercises.length > 4 ? (
+        {sessionExercises.length > 4 && !isFocusMode ? (
           <label className="af-search af-exercise-search">
             <Search size={17} aria-hidden="true" />
             <input
@@ -548,13 +712,24 @@ export function Workout({
                   Boolean(exerciseSearch) ||
                   index === (firstIncompleteExerciseIndex < 0 ? 0 : firstIncompleteExerciseIndex)
                 }
+                expanded={
+                  Boolean(exerciseSearch) ||
+                  (expandedExerciseId === undefined
+                    ? index === (firstIncompleteExerciseIndex < 0 ? 0 : firstIncompleteExerciseIndex)
+                    : expandedExerciseId === exercise.id)
+                }
+                onExpandedChange={(next) => setExpandedExerciseId(next ? exercise.id : null)}
+                onNextExercise={session && !session.completedAt ? () => goToNextExercise(exercise.id) : undefined}
                 exercise={exercise}
                 key={`${displaySession.id}-${exercise.id}-${Boolean(exerciseSearch)}`}
                 log={log}
-                onChange={(exerciseId, nextLog) =>
-                  onExerciseLogChange(session?.id, selectedWorkout.id, exerciseId, nextLog)
-                }
-                previousLog={findPreviousExerciseLog(data.workoutSessions, displaySession, exercise.id)}
+                onChange={(exerciseId, nextLog) => {
+                  setExpandedExerciseId(exerciseId);
+                  onExerciseLogChange(session?.id, selectedWorkout.id, exerciseId, nextLog);
+                }}
+                previousLog={findPreviousExerciseLog(data.workoutSessions, displaySession, exercise.id, {
+                  completedOnly: true,
+                })}
                 readOnly={Boolean(session?.completedAt)}
               />
             );
@@ -580,7 +755,7 @@ export function Workout({
         ) : null}
       </section>
 
-      {onAddCardio && onRemoveCardio ? (
+      {onAddCardio && onRemoveCardio && !isFocusMode ? (
         <CardioJournal entries={data.cardioEntries ?? []} onAddEntry={onAddCardio} onRemoveEntry={onRemoveCardio} />
       ) : null}
 
@@ -644,12 +819,17 @@ export function Workout({
           <button
             className="af-primary-button"
             type="button"
+            disabled={finishing}
             onClick={() => {
-              if (session) onFinishSession(session.id);
+              if (!session || finishingRef.current) return;
+              finishingRef.current = true;
+              setFinishing(true);
+              skipRest();
+              onFinishSession(session.id);
               closeFinishReview();
             }}
           >
-            <CheckCircle2 size={18} aria-hidden="true" /> Finalizar e salvar
+            <CheckCircle2 size={18} aria-hidden="true" /> {finishing ? 'Salvando…' : 'Finalizar e salvar'}
           </button>
           <button className="af-secondary-button" type="button" onClick={closeFinishReview}>
             Continuar treinando
