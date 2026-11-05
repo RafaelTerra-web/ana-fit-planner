@@ -3,7 +3,6 @@ import {
   Check,
   ChevronDown,
   Copy,
-  Dumbbell,
   Info,
   Minus,
   Pencil,
@@ -13,6 +12,8 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
+import { ExerciseArtwork } from './WorkoutArtwork';
+import { ExerciseReference } from './ExerciseReference';
 import { useRestTimer } from '../hooks/useRestTimer';
 import type { Exercise, ExerciseLog, ExerciseSetLog } from '../types';
 import { getExerciseFeedback } from '../utils/progressRules';
@@ -70,6 +71,7 @@ export function ExerciseCard({
   };
   const [weightStep, setWeightStep] = useState(exercise.progressionType === 'isolation' ? 1 : 2.5);
   const [announcement, setAnnouncement] = useState('');
+  const [referenceOpen, setReferenceOpen] = useState(false);
   const pendingCompletions = useRef(new Set<string>());
   const [validation, setValidation] = useState<{
     index: number;
@@ -168,9 +170,7 @@ export function ExerciseCard({
         aria-expanded={isExpanded}
         aria-controls={`sets-${exercise.id}`}
       >
-        <span className="af-exercise-icon">
-          {isComplete ? <Check size={21} aria-hidden="true" /> : <Dumbbell size={21} aria-hidden="true" />}
-        </span>
+        <ExerciseArtwork exercise={exercise} />
         <span className="af-exercise-title">
           <strong>{exercise.name}</strong>
           <span>
@@ -186,6 +186,7 @@ export function ExerciseCard({
 
       {isExpanded ? (
         <div className="af-exercise-content" id={`sets-${exercise.id}`}>
+          <button type="button" className="exercise-reference-trigger" onClick={() => setReferenceOpen(true)}><Info size={14} />Ver referência do movimento</button>
           <div className="af-exercise-tags">
             {exercise.targets
               .filter((target) => target.role === 'primary')
@@ -537,6 +538,7 @@ export function ExerciseCard({
           ) : null}
         </div>
       ) : null}
+      {referenceOpen && <ExerciseReference exercise={exercise} onClose={() => setReferenceOpen(false)} />}
     </article>
   );
 }

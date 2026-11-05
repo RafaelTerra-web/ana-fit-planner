@@ -36,6 +36,7 @@ import { downloadAppBackup, downloadWorkoutCsv } from '../utils/exportData';
 
 type SettingsProps = {
   data: AppData;
+  initialWorkoutId?: string;
   onProfileChange: (profile: Partial<Profile>) => void;
   onGoalsChange: (goals: Partial<Goals>) => void;
   onNotificationsChange: (notifications: Partial<NotificationSettings>) => void;
@@ -77,6 +78,7 @@ const mealCountOptions = [3, 4, 5, 6] as const;
 
 export function Settings({
   data,
+  initialWorkoutId,
   onProfileChange,
   onGoalsChange,
   onNotificationsChange,
@@ -289,7 +291,7 @@ export function Settings({
       ) : null}
 
       <div id="manage-workout-plan" className="scroll-mt-6" tabIndex={-1}>
-        <WorkoutPlanManager data={data} onWeekPlanChange={onWeekPlanChange} onWorkoutsChange={onWorkoutsChange} />
+        <WorkoutPlanManager data={data} initialWorkoutId={initialWorkoutId} onWeekPlanChange={onWeekPlanChange} onWorkoutsChange={onWorkoutsChange} />
       </div>
 
       {assignedPlan ? (

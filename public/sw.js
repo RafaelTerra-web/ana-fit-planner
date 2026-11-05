@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ana-fit-planner-v15';
+const CACHE_NAME = 'ana-fit-planner-v16';
 const CACHE_PREFIX = 'ana-fit-planner-v';
 const NAVIGATION_TIMEOUT_MS = 3500;
 const OFFLINE_MANIFEST_URL = '/offline-assets.json';

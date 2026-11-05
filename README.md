@@ -2,6 +2,17 @@
 
 PWA mobile-first para acompanhar treino, alimentação, cardio, hábitos e progresso corporal em perfis individuais.
 
+## Atualização 1.4 · uma ficha mais visual
+
+- O editor abre na ficha e foca um título, sem abrir o teclado. Nome e orientação ficam em uma seção secundária, aberta apenas quando solicitada.
+- Séries e carga planejada têm botões de ajuste. Repetições e descanso oferecem faixas prontas, com digitação opcional. A carga em kg aceita vírgula decimal, zero para peso corporal e a opção de definir durante o treino.
+- O banco local possui 48 movimentos com identificação estável, músculo, equipamento e uma imagem específica. A escolha e a substituição acontecem em uma biblioteca com filtros por região, músculo e equipamento. A ficha exibe a ordem, a imagem e a prescrição juntas.
+- As rotinas mostram seu foco em inferiores, superiores, core ou corpo inteiro, com referências visuais dos músculos. Imagens podem ser ampliadas no editor e na sessão.
+- GPT Image gerou oito atlas de exercícios e um atlas de nove focos musculares. As imagens WebP somam aproximadamente 665 KB e entram no cache completo do PWA. Prompts e o mapeamento dos arquivos estão em [`docs/workout-image-prompts.json`](docs/workout-image-prompts.json).
+- “Ajustar ficha” abre diretamente o treino selecionado. O histórico não é alterado: uma substituição ganha um novo ID, sessões em andamento permanecem protegidas e a carga planejada só preenche novas sessões, sem concluir séries automaticamente.
+
+Dados continuam na estrutura v5, com os campos opcionais `catalogId` e `plannedWeightKg` por exercício. Movimentos personalizados anteriores são preservados, sem atribuir uma imagem de outro movimento a nomes desconhecidos. Nenhuma mudança no esquema do banco em nuvem é necessária.
+
 ## Atualização 1.3 · disponível offline
 
 - Uma conta já utilizada neste aparelho abre imediatamente pela cópia local, inclusive sem internet ou com o token da nuvem vencido. A opção de esquecer login por inatividade e o logout explícito continuam sendo respeitados; o cache de outra conta nunca é aberto automaticamente.

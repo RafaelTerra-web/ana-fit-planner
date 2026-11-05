@@ -192,7 +192,7 @@ test('service worker falls back for HTTP errors and timeouts and keeps coherent 
     put: async (key, value) => store.set(key, value), addAll: async () => {} };
   let network = async () => new Response('error code', { status: 503 });
   const context = { Response, URL, setTimeout: (callback, ms) => setTimeout(callback, ms === 3500 ? 5 : ms), clearTimeout,
-    caches: { open: async () => cache, match: cache.match, keys: async () => ['other-app', 'ana-fit-planner-v12', 'ana-fit-planner-v13', 'ana-fit-planner-v15'], delete: async (key) => deleted.push(key) },
+    caches: { open: async () => cache, match: cache.match, keys: async () => ['other-app', 'ana-fit-planner-v12', 'ana-fit-planner-v13', 'ana-fit-planner-v16'], delete: async (key) => deleted.push(key) },
     fetch: (...args) => network(...args), self: { AbortController, location: { origin: 'https://app.test' },
       addEventListener: (type, handler) => { listeners[type] = handler; }, clients: { claim: async () => {} } } };
   vm.runInNewContext(await readFile(new URL('../public/sw.js', import.meta.url), 'utf8'), context);

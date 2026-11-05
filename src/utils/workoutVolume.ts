@@ -1,5 +1,6 @@
 import { weekPlan as defaultWeekPlan, workouts as defaultWorkouts } from '../data/workoutPlan';
 import type { AppData, Exercise, ExerciseTarget, MuscleGroup, WeekActivityType, WeekPlanItem, Workout } from '../types';
+import { normalizePlannedWeight } from './exerciseCatalog';
 
 export const muscleOptions: Array<{ value: MuscleGroup; label: string }> = [
   { value: 'glutes', label: 'Gluteos' },
@@ -228,6 +229,7 @@ function normalizeExercise(exercise: Exercise, index: number): Exercise {
     sets: parseSetCount(legacyExercise.sets),
     reps: legacyExercise.reps || '8 a 12 reps',
     rest: legacyExercise.rest || '90 s',
+    plannedWeightKg: normalizePlannedWeight(legacyExercise.plannedWeightKg),
     targets: normalizeTargets(legacyExercise.targets, name),
     unilateral: Boolean(legacyExercise.unilateral),
     progressionType: legacyExercise.progressionType === 'isolation' ? 'isolation' : 'large',

@@ -162,7 +162,11 @@ export function createExerciseLog(exercise: Exercise, legacyLog?: LegacyExercise
     targetReps: exercise.reps,
     targetRir: exercise.rir,
     plannedSetCount,
-    sets: Array.from({ length: setCount }, (_, setIndex) => createSetLog(exercise.id, setIndex, legacyLog)),
+    sets: Array.from({ length: setCount }, (_, setIndex) => ({
+      ...createSetLog(exercise.id, setIndex, legacyLog),
+      ...(typeof exercise.plannedWeightKg === 'number' && Number.isFinite(exercise.plannedWeightKg) && exercise.plannedWeightKg >= 0
+        ? { weight: String(exercise.plannedWeightKg) } : {}),
+    })),
     note: toText(legacyLog?.note),
   };
 }

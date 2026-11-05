@@ -40,6 +40,7 @@ import {
 } from '../utils/workoutSessions';
 import '../workout-refresh.css';
 import '../gym-workout.css';
+import { WorkoutArtwork } from '../components/WorkoutArtwork';
 
 type WorkoutProps = {
   data: AppData;
@@ -51,7 +52,7 @@ type WorkoutProps = {
   onFinishSession: (sessionId: string) => void;
   onStartSession: (workoutId: string) => void;
   onToggleCheck: (key: keyof Omit<DailyChecks, 'meals'>) => void;
-  onManagePlan?: () => void;
+  onManagePlan?: (workoutId?: string) => void;
   onAddCardio?: (entry: CardioEntry) => void;
   onRemoveCardio?: (id: string) => void;
 };
@@ -289,7 +290,7 @@ export function Workout({
           <button
             className="af-icon-button"
             type="button"
-            onClick={onManagePlan}
+            onClick={() => onManagePlan(selectedWorkout.id)}
             aria-label="Criar ou editar meus treinos"
           >
             <Pencil size={19} aria-hidden="true" />
@@ -457,7 +458,7 @@ export function Workout({
           <div className="af-section-heading">
             <h2 id="routine-library-title">Sua rotina</h2>
             {onManagePlan ? (
-              <button className="af-text-button" type="button" onClick={onManagePlan}>
+              <button className="af-text-button" type="button" onClick={() => onManagePlan()}>
                 Organizar <ChevronRight size={15} aria-hidden="true" />
               </button>
             ) : (
@@ -498,7 +499,7 @@ export function Workout({
                 >
                   <span className="af-routine-top">
                     <span className="af-routine-icon">
-                      <Dumbbell size={23} aria-hidden="true" />
+                      <WorkoutArtwork workout={workout} compact />
                     </span>
                     {isActive ? (
                       <span className="af-routine-state">Em andamento</span>
@@ -667,6 +668,8 @@ export function Workout({
               >
                 <CheckCircle2 size={17} aria-hidden="true" /> Finalizar
               </button>
+            ) : onManagePlan ? (
+              <button className="af-secondary-button" type="button" onClick={() => onManagePlan(selectedWorkout.id)}><Pencil size={15} />Ajustar ficha</button>
             ) : null}
           </div>
         )}
