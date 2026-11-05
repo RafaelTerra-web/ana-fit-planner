@@ -15,6 +15,8 @@ const syncLabels: Record<CloudSyncStatus, string> = {
   saving: 'Salvando…',
   offline: 'Salvo offline',
   error: 'Revisar sincronização',
+  conflict: 'Conciliar alterações',
+  'auth-required': 'Reconectar conta',
 };
 
 export function AppHeader({
@@ -54,7 +56,7 @@ export function AppHeader({
           onClick={() => onSelectTab('settings')}
           aria-label={`${syncLabels[syncStatus]}. Abrir ajustes`}
         >
-          {syncStatus === 'offline' || syncStatus === 'error' ? (
+          {['offline', 'error', 'conflict', 'auth-required'].includes(syncStatus) ? (
             <CloudOff size={15} />
           ) : syncStatus === 'saving' ? (
             <RefreshCw size={15} className="animate-spin" />

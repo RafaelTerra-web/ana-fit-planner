@@ -47,6 +47,7 @@ type SettingsProps = {
     status: CloudSyncStatus;
     lastSyncedAt: string | null;
     retry: () => Promise<boolean>;
+    resolveConflict?: (choice: 'local' | 'remote') => Promise<boolean>;
   };
 };
 
@@ -87,7 +88,7 @@ export function Settings({
 }: SettingsProps) {
   const [notificationMessage, setNotificationMessage] = useState('');
   const assignedPlan = data.assignedNutritionPlan;
-  const { user, cloudEnabled, migrationResult, forgetAfterDays, setForgetAfterDays, signOut } = useAuth();
+  const { user, cloudEnabled, migrationResult, forgetAfterDays, setForgetAfterDays, signOut, reauthenticate } = useAuth();
   const assignedProteinRange = assignedPlan?.targets?.proteinGrams;
   const hasAssignedProteinRange =
     typeof assignedProteinRange?.min === 'number' &&
@@ -102,12 +103,16 @@ export function Settings({
   const suggestedGoals = calculateDynamicGoals(data.profile);
   const supportMessage = getNotificationSupportMessage();
   const syncMessage =
-    cloudSync.status === 'saving'
+    cloudSync.status === 'conflict'
+      ? 'Há alterações diferentes em dois aparelhos. Continue usando e escolha como combinar abaixo.'
+      : cloudSync.status === 'auth-required'
+        ? 'Entre novamente para sincronizar. Seus dados continuam disponíveis offline.'
+      : cloudSync.status === 'saving'
       ? 'Salvando na nuvem...'
       : cloudSync.status === 'offline'
         ? 'Sem internet — alterações protegidas neste aparelho'
         : cloudSync.status === 'error'
-          ? 'Falha ao sincronizar. Toque para tentar novamente.'
+          ? 'Salvo neste aparelho. A sincronização será tentada automaticamente; toque para tentar agora.'
           : cloudSync.lastSyncedAt
             ? `Nuvem atualizada às ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(cloudSync.lastSyncedAt))}`
             : migrationResult === 'uploaded'
@@ -229,7 +234,7 @@ export function Settings({
               if (cloudSync.status === 'error' || cloudSync.status === 'offline') void cloudSync.retry();
             }}
           >
-            {cloudSync.status === 'offline' || cloudSync.status === 'error' ? (
+            {['offline', 'error', 'conflict', 'auth-required'].includes(cloudSync.status) ? (
               <CloudOff className="shrink-0 text-amber-300" size={20} aria-hidden="true" />
             ) : cloudSync.status === 'saving' ? (
               <RefreshCw className="shrink-0 animate-spin text-lime-300" size={20} aria-hidden="true" />
@@ -238,6 +243,18 @@ export function Settings({
             )}
             <span className="text-sm font-semibold leading-snug text-slate-300">{syncMessage}</span>
           </button>
+
+          {cloudSync.status === 'auth-required' && reauthenticate ? (
+            <button className="primary-button mt-3 w-full" type="button" onClick={reauthenticate}>Entrar para sincronizar</button>
+          ) : null}
+          {cloudSync.status === 'conflict' && cloudSync.resolveConflict ? (
+            <div className="mt-3 space-y-2">
+              <p className="text-sm text-slate-400">Novos registros dos dois aparelhos serão mantidos. Para valores alterados nos dois lugares, escolha a preferência. Uma cópia das duas versões ficará guardada neste aparelho.</p>
+              <button className="secondary-button w-full" type="button" onClick={() => void cloudSync.resolveConflict?.('local')}>Priorizar este aparelho</button>
+              <button className="secondary-button w-full" type="button" onClick={() => void cloudSync.resolveConflict?.('remote')}>Priorizar a nuvem</button>
+            </div>
+          ) : null}
+          <p className="mt-3 text-xs leading-relaxed text-slate-400">Treinos, alimentação, hábitos e evolução funcionam sem internet após o primeiro acesso neste aparelho. A nuvem é sincronizada quando houver conexão e o app estiver aberto. Login, recuperação de senha e avisos push precisam de internet.</p>
 
           <label className="mt-4 block space-y-1.5 text-sm font-semibold text-slate-200" htmlFor="forget-login">
             <span>Esquecer login neste iPhone</span>
@@ -263,7 +280,7 @@ export function Settings({
           <button
             className="secondary-button mt-4 w-full"
             type="button"
-            onClick={() => void cloudSync.retry().finally(signOut)}
+            onClick={() => void signOut()}
           >
             <LogOut size={18} aria-hidden="true" />
             Sair da conta agora

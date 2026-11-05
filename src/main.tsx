@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { AuthGate } from './auth/AuthGate';
 import { RestTimerProvider } from './components/RestTimerProvider';
+import { LocalSaveNotice } from './components/LocalSaveNotice';
 import './index.css';
 import './refresh.css';
 import './dark-theme.css';
@@ -11,6 +12,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthGate>
       <RestTimerProvider>
+        <LocalSaveNotice />
         <App />
       </RestTimerProvider>
     </AuthGate>
