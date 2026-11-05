@@ -2,6 +2,17 @@
 
 PWA mobile-first para acompanhar treino, alimentação, cardio, hábitos e progresso corporal em perfis individuais.
 
+## Atualização 1.3 · disponível offline
+
+- Uma conta já utilizada neste aparelho abre imediatamente pela cópia local, inclusive sem internet ou com o token da nuvem vencido. A opção de esquecer login por inatividade e o logout explícito continuam sendo respeitados; o cache de outra conta nunca é aberto automaticamente.
+- Treinos, séries, descanso local, alimentação, hábitos, perfil, planos, cardio, rank e evolução continuam utilizáveis sem o banco. O onboarding de uma conta já autenticada também pode ser concluído offline.
+- Cada alteração é gravada no `localStorage` por conta antes de retornar da interação, com um marcador persistente de envio pendente. Fechar e reabrir o app não descarta a fila. Falta de espaço gera um aviso visível para exportar a cópia.
+- A sincronização acontece ao reconectar, voltar ao app, alterar dados e a cada 30 segundos com o app visível. Ela valida a conta na nuvem e usa a versão remota para evitar sobrescrever mudanças concorrentes. Uma edição feita durante o envio continua pendente.
+- Uma cópia da última versão sincronizada permite combinar alterações independentes entre aparelhos. Conflitos no mesmo valor são resolvidos nos Ajustes, com preferência pelo aparelho ou pela nuvem e uma cópia das duas versões guardada localmente. O plano nutricional administrado continua protegido pelo servidor.
+- O PWA abre a versão completa em cache quando a hospedagem responde com erro, conteúdo inválido ou demora mais de 3,5 segundos. O cache não mistura o HTML de uma atualização com arquivos ausentes de outra versão.
+
+O primeiro acesso no aparelho, criação/recuperação de conta e notificações push precisam de internet. A atualização deve ser aberta online uma vez para baixar seus arquivos. A sincronização exige o app aberto; o sistema operacional pode suspender tarefas em segundo plano. Limpar os dados do navegador, remover o cache do PWA ou perder o aparelho pode apagar dados ainda não enviados: use a exportação em Ajustes como cópia adicional.
+
 ## Atualização 1.2 · dentro da academia
 
 - Tema escuro como padrão, com destaque mint, maior contraste e opção Claro/Escuro nos Ajustes. A escolha explícita fica salva por perfil; o claro imposto pela versão 1.1 passa para escuro uma única vez.
@@ -12,7 +23,7 @@ PWA mobile-first para acompanhar treino, alimentação, cardio, hábitos e progr
 - Descanso com −15 s, +30 s e Pular, persistência isolada por conta e contagem por horário absoluto. Cada alteração reagenda o alarme, até o limite de 10 minutos. Finalizar o treino encerra o descanso.
 - Botão Manter tela acesa, com liberação ao sair do modo academia e nova solicitação ao retornar ao app. Depende do suporte e das condições de energia do aparelho; falhas mostram um aviso no próprio controle.
 
-As sessões e os critérios de XP continuam iguais. As melhorias de retomada do descanso não alteram a autenticação: abrir uma conta do zero sem internet ainda pode exigir reconexão para validar a sessão.
+As sessões e os critérios de XP continuam iguais. A versão 1.3 ampliou a abertura offline de contas já utilizadas neste aparelho.
 
 ## Atualização 1.1 · sua rotina, seu ritmo
 
@@ -130,7 +141,7 @@ npm run assign:nutrition -- --plan-file scripts/data/plano.json --validate-only
 
 O comando sem `--apply` faz apenas uma prévia e mostra os quatro valores de confirmação exigidos pela gravação. O script localiza uma única conta pelo parâmetro `--email`, mescla somente dieta, metas e preferências alimentares e verifica que treino, progresso, rank e histórico não mudaram.
 
-No primeiro acesso feito pelo próprio iPhone, se ainda não houver dados na nuvem, a cópia `v5` (ou a antiga `v4`) do aparelho é enviada automaticamente. Se a nuvem já tiver dados, ela é restaurada antes da abertura do aplicativo.
+No primeiro acesso autenticado feito pelo próprio iPhone, se ainda não houver dados na nuvem, a cópia `v5` (ou a antiga `v4`) do aparelho é enviada automaticamente. Se a nuvem já tiver dados e não houver cache daquela conta, ela é restaurada antes da abertura. Nas aberturas seguintes, o cache abre imediatamente e a nuvem é conciliada em segundo plano.
 
 Para notificações push no iPhone, configure:
 

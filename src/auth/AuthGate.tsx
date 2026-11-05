@@ -1,9 +1,9 @@
 import type { User } from '@supabase/supabase-js';
 import { Activity, CheckCircle2, Cloud, Dumbbell, Eye, EyeOff, LoaderCircle, LockKeyhole, LogIn, Mail, ShieldCheck, Sparkles, Trophy, UserPlus, UserRound } from 'lucide-react';
-import { type FormEvent, type PropsWithChildren, useEffect, useState } from 'react';
+import { type FormEvent, type PropsWithChildren, useEffect, useRef, useState } from 'react';
 import { AuthContext, getUserDisplayName, type ForgetAfterDays, type MigrationResult } from './authContext';
-import { isSupabaseConfigured, supabase } from '../lib/supabase';
-import type { AppData } from '../types';
+import { isSupabaseConfigured, supabase, supabaseAuthStorageKey } from '../lib/supabase';
+import { forgetOfflineUser, readOfflineUser, rememberOfflineUser } from '../lib/offlineSession';
 import { normalizeAssignedNutritionPlan } from '../utils/assignedNutritionPlan';
 import { detachPushSubscriptionForCurrentUser } from '../utils/notifications';
 import { jsonValuesAreEqual } from '../utils/json';
@@ -11,7 +11,6 @@ import {
   APP_STORAGE_KEY,
   clearSharedStoredAppData,
   clearCloudPendingMarker,
-  completeCloudUpload,
   CLOUD_OWNER_STORAGE_KEY,
   getUserAppStorageKey,
   LEGACY_APP_STORAGE_KEY,
@@ -19,10 +18,10 @@ import {
   preservePendingUserDataBeforeCloudDownload,
   preserveUnclaimedStoredData,
   readCloudPendingMarker,
-  readCloudSyncVersion,
   readStoredAppData,
-  writeCloudSyncVersion,
   writeStoredAppData,
+  writeCloudBase,
+  markCloudDataPending,
 } from '../lib/storage';
 
 const FORGET_AFTER_STORAGE_KEY = 'ana-fit-planner:forget-after-days:v1';
@@ -726,7 +725,7 @@ async function prepareUserData(user: User): Promise<MigrationResult> {
   const finishPreparation = async (data: unknown, updatedAt: string, source?: string) => {
     await assertActiveUser(userId, assignedNutritionMarker);
     writeStoredAppData(data, userId);
-    writeCloudSyncVersion(userId, updatedAt);
+    writeCloudBase(userId, data, updatedAt);
     if (source === APP_STORAGE_KEY || source === LEGACY_APP_STORAGE_KEY) {
       clearSharedStoredAppData();
     }
@@ -823,97 +822,17 @@ async function prepareUserData(user: User): Promise<MigrationResult> {
   return 'empty';
 }
 
-async function persistCompletedOnboarding(user: User, completedData: AppData) {
-  if (!supabase) throw new Error('Supabase is not configured.');
-  if (completedData.profile.onboardingCompleted !== true) {
-    throw new Error('Onboarding data is not marked as completed.');
-  }
-
-  const activeUser = await assertActiveUser(user.id);
-  const assignedNutritionMarker = readAssignedNutritionMarker(activeUser);
-  const localBaseUpdatedAt = readCloudSyncVersion(user.id);
-  const { data: remoteRow, error } = await supabase
-    .from('anfit_user_app_data')
-    .select('data,updated_at')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (error) throw error;
-
-  await assertActiveUser(user.id, assignedNutritionMarker);
-  const remoteHasAssignedNutrition = hasAssignedNutritionField(remoteRow?.data);
-  if (!assignedNutritionMarker && (remoteHasAssignedNutrition || hasAssignedNutritionField(completedData))) {
-    throw new Error('Assigned nutrition is missing its authoritative account marker.');
-  }
-
-  const dataToSave = assignedNutritionMarker
-    ? mergeAuthoritativeNutrition(completedData, remoteRow?.data, assignedNutritionMarker)
-    : completedData;
-
-  let savedUpdatedAt: string;
-  if (remoteRow) {
-    if (typeof remoteRow.updated_at !== 'string') {
-      throw new Error('Account data is missing its concurrency version.');
-    }
-    if (!localBaseUpdatedAt || localBaseUpdatedAt !== remoteRow.updated_at) {
-      throw new CloudConflictError('Cloud data changed while onboarding was open.');
-    }
-    savedUpdatedAt = await uploadVersionedUserData(user.id, dataToSave, localBaseUpdatedAt);
-  } else {
-    if (localBaseUpdatedAt) {
-      throw new CloudConflictError('The cloud row disappeared while onboarding was open.');
-    }
-    savedUpdatedAt = await uploadUserData(user.id, dataToSave);
-  }
-
-  const { data: persistedRow, error: verificationError } = await supabase
-    .from('anfit_user_app_data')
-    .select('data,updated_at')
-    .eq('user_id', user.id)
-    .single();
-  if (verificationError) throw verificationError;
-  if (
-    !isRecord(persistedRow.data) ||
-    !isRecord(persistedRow.data.profile) ||
-    persistedRow.data.profile.onboardingCompleted !== true
-  ) {
-    throw new Error('Completed onboarding was not persisted.');
-  }
-  if (assignedNutritionMarker) {
-    getAuthoritativeNutrition(persistedRow.data, assignedNutritionMarker);
-  } else if (hasAssignedNutritionField(persistedRow.data)) {
-    throw new Error('Persisted nutrition is missing its authoritative account marker.');
-  }
-  if (persistedRow.updated_at !== savedUpdatedAt) {
-    throw new Error('The onboarding save could not be verified against its remote version.');
-  }
-  const completedPendingMarker = readCloudPendingMarker(user.id);
-  if (completedPendingMarker) {
-    completeCloudUpload(user.id, completedPendingMarker.version, savedUpdatedAt);
-  } else {
-    writeCloudSyncVersion(user.id, savedUpdatedAt);
-  }
-
-  const verifiedUser = await assertActiveUser(user.id, assignedNutritionMarker);
-  if (verifiedUser.user_metadata?.requires_onboarding !== true) {
-    return { data: persistedRow.data as unknown as AppData, user: verifiedUser };
-  }
-
-  const { data: updateResult, error: metadataError } = await supabase.auth.updateUser({
-    data: { ...verifiedUser.user_metadata, requires_onboarding: false },
-  });
-  if (metadataError || !updateResult.user) {
-    throw metadataError ?? new Error('Could not finish onboarding metadata.');
-  }
-
-  return { data: persistedRow.data as unknown as AppData, user: updateResult.user };
-}
-
 export function AuthGate({ children }: PropsWithChildren) {
-  const [user, setUser] = useState<User | null>(null);
-  const [stage, setStage] = useState<'loading' | 'login' | 'password' | 'preparing' | 'ready' | 'error'>('loading');
+  const [user, setUser] = useState<User | null>(() => {
+    const cached = readOfflineUser(supabaseAuthStorageKey);
+    return cached && !sessionExpired(cached) ? cached : null;
+  });
+  const [stage, setStage] = useState<'loading' | 'login' | 'password' | 'preparing' | 'ready' | 'error'>(() => user ? 'ready' : 'loading');
   const [preparationError, setPreparationError] = useState<'conflict' | 'generic' | null>(null);
   const [migrationResult, setMigrationResult] = useState<MigrationResult>('empty');
   const [forgetAfterDays, setForgetAfterDaysState] = useState<ForgetAfterDays>(readForgetAfterDays);
+  const readyUserRef = useRef(user?.id);
+  const explicitlySignedOutRef = useRef(false);
 
   useEffect(() => {
     const client = supabase;
@@ -922,9 +841,12 @@ export function AuthGate({ children }: PropsWithChildren) {
 
     const routeUser = (nextUser: User | null, recovery = false) => {
       if (!active) return;
+      // An expired cloud session never removes access to an already saved device profile.
+      if (!nextUser && !explicitlySignedOutRef.current) nextUser = readOfflineUser(supabaseAuthStorageKey);
 
       if (nextUser && sessionExpired(nextUser)) {
-        window.localStorage.removeItem(accountSettingKey(LAST_ACTIVITY_STORAGE_KEY, nextUser.id));
+        forgetOfflineUser();
+        explicitlySignedOutRef.current = true;
         void detachPushSubscriptionForCurrentUser()
           .catch(() => false)
           .finally(() => client.auth.signOut({ scope: 'local' }));
@@ -938,22 +860,38 @@ export function AuthGate({ children }: PropsWithChildren) {
       if (!nextUser) {
         setStage('login');
       } else if (recovery || nextUser.user_metadata.force_password_change === true) {
+        forgetOfflineUser();
+        readyUserRef.current = undefined;
         recordActivity(nextUser.id);
         setStage('password');
       } else {
+        explicitlySignedOutRef.current = false;
         recordActivity(nextUser.id);
-        setStage('preparing');
+        const local = readStoredAppData(nextUser.id, false);
+        if (readyUserRef.current === nextUser.id || (isRecord(local?.data) && isRecord(local.data.profile))) {
+          window.localStorage.setItem(CLOUD_OWNER_STORAGE_KEY, nextUser.id);
+          rememberOfflineUser(nextUser);
+          readyUserRef.current = nextUser.id;
+          setStage('ready');
+        } else {
+          setStage('preparing');
+        }
       }
     };
 
-    client.auth.getSession().then(({ data }) => routeUser(data.session?.user ?? null));
+    client.auth.getSession().then(({ data }) => routeUser(data.session?.user ?? null)).catch(() => routeUser(null));
+    const loadingTimeout = window.setTimeout(() => {
+      if (active && !readyUserRef.current) setStage((current) => current === 'loading' ? 'login' : current);
+    }, 12_000);
     const { data: listener } = client.auth.onAuthStateChange((event, session) => {
       if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return;
+      if (event === 'SIGNED_IN') explicitlySignedOutRef.current = false;
       routeUser(session?.user ?? null, event === 'PASSWORD_RECOVERY');
     });
 
     return () => {
       active = false;
+      window.clearTimeout(loadingTimeout);
       listener.subscription.unsubscribe();
     };
   }, []);
@@ -965,6 +903,11 @@ export function AuthGate({ children }: PropsWithChildren) {
 
     const handleActivity = () => {
       if (sessionExpired(user)) {
+        forgetOfflineUser();
+        explicitlySignedOutRef.current = true;
+        readyUserRef.current = undefined;
+        setUser(null);
+        setStage('login');
         void detachPushSubscriptionForCurrentUser()
           .catch(() => false)
           .finally(() => client.auth.signOut({ scope: 'local' }));
@@ -1002,10 +945,20 @@ export function AuthGate({ children }: PropsWithChildren) {
         if (!active) return;
         setPreparationError(null);
         setMigrationResult(result);
+        rememberOfflineUser(user);
+        readyUserRef.current = user.id;
         setStage('ready');
       })
       .catch((error: unknown) => {
         if (active) {
+          const local = readStoredAppData(user.id, false);
+          if (isRecord(local?.data) && isRecord(local.data.profile)) {
+            window.localStorage.setItem(CLOUD_OWNER_STORAGE_KEY, user.id);
+            rememberOfflineUser(user);
+            readyUserRef.current = user.id;
+            setStage('ready');
+            return;
+          }
           setPreparationError(error instanceof CloudConflictError ? 'conflict' : 'generic');
           setStage('error');
         }
@@ -1103,6 +1056,7 @@ export function AuthGate({ children }: PropsWithChildren) {
 
   return (
     <AuthContext.Provider
+      key={user.id}
       value={{
         user,
         displayName: getUserDisplayName(user),
@@ -1119,13 +1073,20 @@ export function AuthGate({ children }: PropsWithChildren) {
           recordActivity(user.id);
         },
         markOnboardingComplete: async (data) => {
-          const result = await persistCompletedOnboarding(user, data);
-          setUser((currentUser) => currentUser?.id === result.user.id ? result.user : currentUser);
-          return result.data;
+          markCloudDataPending(user.id);
+          writeStoredAppData(data, user.id);
+          return data;
         },
+        reauthenticate: () => { readyUserRef.current = undefined; setStage('login'); },
         signOut: async () => {
-          await detachPushSubscriptionForCurrentUser().catch(() => false);
-          if (supabase) await supabase.auth.signOut({ scope: 'local' });
+          explicitlySignedOutRef.current = true;
+          readyUserRef.current = undefined;
+          forgetOfflineUser();
+          window.localStorage.removeItem(supabaseAuthStorageKey);
+          setUser(null);
+          setStage('login');
+          void detachPushSubscriptionForCurrentUser().catch(() => false);
+          if (supabase) void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
         },
       }}
     >

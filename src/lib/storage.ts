@@ -3,6 +3,9 @@ export const LEGACY_APP_STORAGE_KEY = 'ana-fit-planner:data:v4';
 export const CLOUD_OWNER_STORAGE_KEY = 'ana-fit-planner:cloud-owner:v1';
 export const CLOUD_PENDING_STORAGE_KEY = 'ana-fit-planner:cloud-pending:v1';
 export const CLOUD_SYNC_VERSION_STORAGE_KEY = 'ana-fit-planner:cloud-version:v1';
+export const APP_DATA_UPDATED_EVENT = 'anfit:app-data-updated';
+export const LOCAL_SAVE_EVENT = 'anfit:local-save';
+const CLOUD_BASE_STORAGE_KEY = 'ana-fit-planner:cloud-base:v1';
 const UNCLAIMED_STORAGE_PREFIX = 'ana-fit-planner:unclaimed';
 const CONFLICT_BACKUP_STORAGE_PREFIX = 'ana-fit-planner:conflict-backup';
 
@@ -86,6 +89,31 @@ export function writeCloudSyncVersion(ownerId: string, updatedAt: string) {
     throw new Error('A versao remota recebida e invalida.');
   }
   window.localStorage.setItem(getUserCloudSyncVersionStorageKey(ownerId), updatedAt);
+}
+
+export function readCloudBase(ownerId: string): { data: unknown; updatedAt: string } | null {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(`${CLOUD_BASE_STORAGE_KEY}:user:${ownerId}`) ?? 'null');
+    return value && typeof value.updatedAt === 'string' && value.data ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeCloudBase(ownerId: string, data: unknown, updatedAt: string) {
+  window.localStorage.setItem(`${CLOUD_BASE_STORAGE_KEY}:user:${ownerId}`, JSON.stringify({ data, updatedAt }));
+  writeCloudSyncVersion(ownerId, updatedAt);
+}
+
+export function notifyAppDataUpdated(ownerId: string) {
+  window.dispatchEvent(new window.CustomEvent(APP_DATA_UPDATED_EVENT, { detail: { ownerId } }));
+}
+
+export function preserveSyncConflict(ownerId: string, local: unknown, remote: unknown) {
+  // One recoverable pair per account; repeated retries must not exhaust storage.
+  window.localStorage.setItem(`${CONFLICT_BACKUP_STORAGE_PREFIX}:user:${ownerId}:latest`, JSON.stringify({
+    savedAt: new Date().toISOString(), local, remote,
+  }));
 }
 
 export function markCloudDataPending(ownerId: string) {

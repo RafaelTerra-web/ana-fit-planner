@@ -14,6 +14,7 @@ export type AuthContextValue = {
   setForgetAfterDays: (days: ForgetAfterDays) => void;
   markOnboardingComplete: (data: AppData) => Promise<AppData>;
   signOut: () => Promise<void>;
+  reauthenticate?: () => void;
 };
 
 function metadataString(user: User, key: string) {
