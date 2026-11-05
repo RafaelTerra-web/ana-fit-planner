@@ -156,6 +156,9 @@ export type ExerciseTarget = {
 
 export type Exercise = {
   id: string;
+  catalogId?: string;
+  /** User-selected external load for future sessions; never marks a set complete. */
+  plannedWeightKg?: number;
   name: string;
   sets: number;
   reps: string;

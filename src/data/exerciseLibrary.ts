@@ -1,6 +1,6 @@
 import type { Exercise, MuscleGroup } from '../types';
 
-export type LibraryExercise = Omit<Exercise, 'id'> & { equipment: string };
+export type LibraryExercise = Omit<Exercise, 'id'> & { catalogId: string; equipment: string; imageIndex: number };
 type Entry = [string, MuscleGroup, string, 'large' | 'isolation', MuscleGroup?];
 const entries: Entry[] = [
   ['Agachamento livre', 'quadriceps', 'Barra', 'large', 'glutes'],
@@ -47,15 +47,21 @@ const entries: Entry[] = [
   ['Panturrilha em pé', 'calves', 'Máquina', 'isolation'],
   ['Panturrilha sentada', 'calves', 'Máquina', 'isolation'],
   ['Panturrilha unilateral', 'calves', 'Peso corporal', 'isolation'],
+  ['Prancha', 'core', 'Peso corporal', 'isolation'],
+  ['Supino na máquina', 'chest', 'Máquina', 'large', 'arms'],
+  ['Remada articulada', 'back', 'Máquina', 'large', 'arms'],
+  ['Leg press horizontal', 'quadriceps', 'Máquina', 'large', 'glutes'],
 ];
 
 export const exerciseLibrary: LibraryExercise[] = entries.map(
-  ([name, primary, equipment, progressionType, secondary]) => ({
+  ([name, primary, equipment, progressionType, secondary], index) => ({
+    catalogId: `anfit-${index + 1}`,
+    imageIndex: index,
     name,
     equipment,
     progressionType,
     sets: 3,
-    reps: '8 a 12 reps',
+    reps: name === 'Prancha' ? '30 a 60 s' : '8 a 12 reps',
     rest: '90 s',
     targets: [
       { muscle: primary, role: 'primary' },

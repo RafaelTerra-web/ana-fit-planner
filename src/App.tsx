@@ -245,6 +245,7 @@ function App() {
   const { markOnboardingComplete, user } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTab>(getInitialTab);
   const [workoutSelectionId, setWorkoutSelectionId] = useState<string | undefined>();
+  const [editingWorkoutId, setEditingWorkoutId] = useState<string | undefined>();
   const [dateKey, setDateKey] = useState(getLocalDateKey);
   const [storedData, setStoredData] = useLocalStorage<unknown>(APP_STORAGE_KEY, getInitialStoredData);
   const normalizedData = useMemo(() => normalizeAppData(storedData), [storedData]);
@@ -349,7 +350,7 @@ function App() {
   }, [data.rank]);
 
   useEffect(() => {
-    const handlePopState = () => setActiveTab(getInitialTab());
+    const handlePopState = () => { setEditingWorkoutId(undefined); setActiveTab(getInitialTab()); };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -391,6 +392,7 @@ function App() {
   }, [setStoredData]);
 
   const changeTab = (tab: AppTab) => {
+    setEditingWorkoutId(undefined);
     if (tab !== 'workout') setWorkoutSelectionId(undefined);
     setActiveTab(tab);
     const url = new URL(window.location.href);
@@ -820,8 +822,10 @@ function App() {
     }
   };
 
-  const managePlan = () => {
+  const managePlan = (workoutId?: string) => {
     changeTab('settings');
+    setEditingWorkoutId(workoutId);
+    if (workoutId) return;
     window.requestAnimationFrame(() => {
       const section = document.getElementById('manage-workout-plan');
       section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -920,6 +924,7 @@ function App() {
           {activeTab === 'progress' ? <Progress data={data} onAddProgress={addProgress} /> : null}
           {activeTab === 'settings' ? (
             <Settings
+              initialWorkoutId={editingWorkoutId}
               data={{ ...data, notifications }}
               onProfileChange={updateProfile}
               onGoalsChange={updateGoals}

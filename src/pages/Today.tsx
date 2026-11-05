@@ -22,6 +22,8 @@ import { getActiveMealDay, getRequiredMeals } from '../utils/meals';
 import { getLocalDateKey, getWorkoutSessionId, getWorkoutSessionProgress } from '../utils/workoutSessions';
 import { estimateWorkoutMinutes } from '../utils/workoutExperience';
 import { getSessionTrainingSummary } from '../utils/trainingInsights';
+import { MuscleArtwork, WorkoutArtwork } from '../components/WorkoutArtwork';
+import { getWorkoutFocus } from '../utils/exerciseCatalog';
 
 type TodayProps = {
   data: AppData;
@@ -31,7 +33,7 @@ type TodayProps = {
   onSelectTab: (tab: AppTab) => void;
   onStartWorkout: (workoutId: string) => void;
   onToggleCheck: (key: keyof Omit<DailyChecks, 'meals'>) => void;
-  onManagePlan?: () => void;
+  onManagePlan?: (workoutId?: string) => void;
   onOpenWorkout?: (workoutId: string) => void;
 };
 const days = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
@@ -203,7 +205,7 @@ export function Today({
                 <i /> Recuperação
               </span>
               {onManagePlan && (
-                <button type="button" onClick={onManagePlan}>
+                <button type="button" onClick={() => onManagePlan()}>
                   Editar <ChevronRight size={13} />
                 </button>
               )}
@@ -220,7 +222,7 @@ export function Today({
               </span>
               <span className="home-workout-symbol">
                 {workout ? (
-                  <Dumbbell size={28} />
+                  <MuscleArtwork muscle={getWorkoutFocus(workout).muscle} />
                 ) : selectedPlan.activityType === 'cardio' ? (
                   <HeartPulse size={28} />
                 ) : (
@@ -290,7 +292,7 @@ export function Today({
               </button>
             </div>
             <div className="home-routine-previews">
-              {data.workouts.slice(0, 2).map((routine, index) => (
+              {data.workouts.slice(0, 2).map((routine) => (
                 <button
                   key={routine.id}
                   type="button"
@@ -299,9 +301,7 @@ export function Today({
                     onSelectTab('workout');
                   }}
                 >
-                  <span className={index ? 'lavender' : 'mint'}>
-                    <Dumbbell size={21} />
-                  </span>
+                  <WorkoutArtwork workout={routine} compact />
                   <strong>{routine.shortTitle || routine.title}</strong>
                   <small>{routine.exercises.length} exercícios</small>
                   <ArrowRight size={16} />
@@ -309,7 +309,7 @@ export function Today({
               ))}
             </div>
             {onManagePlan && (
-              <button className="home-create-routine" type="button" onClick={onManagePlan}>
+              <button className="home-create-routine" type="button" onClick={() => onManagePlan()}>
                 <Plus size={16} /> Personalizar minha rotina
               </button>
             )}
